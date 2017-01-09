@@ -1,0 +1,44 @@
+#!/usr/bin/php
+<?php
+require __DIR__.'/../vendor/autoload.php';
+
+use wapmorgan\Mp3Info\Mp3Info;
+
+if ($argc == 1)
+    die('Specify file names to scan');
+
+function formatTime($time) {
+    return floor($time / 60).':'.str_pad(floor($time % 60), 2, 0, STR_PAD_LEFT);
+}
+
+function substrIfLonger($string, $maxLength) {
+    if (strlen($string) > $maxLength) {
+        return substr($string, 0, $maxLength-3).'...';
+    }
+    return $string;
+}
+
+function analyze($filename, &$total_parse_time) {
+    if (!is_readable($filename)) return;
+    try {
+    $audio = new Mp3Info($filename, true);
+    } catch (Exception $e) {
+        return null;
+    }
+    echo sprintf('%15s | %4s | %7s | %0.1fkHz | %-11s | %-10s | %.5f', substrIfLonger(basename($filename), 15), formatTime($audio->duration), $audio->isVbr ? 'vbr' : ($audio->bitRate / 1000).'kbps', ($audio->sampleRate / 1000), isset($audio->tags1['song']) ? substrIfLonger($audio->tags1['song'], 11) : null, isset($audio->tags1['artist']) ? substrIfLonger($audio->tags1['artist'], 10) : null, $audio->_parsingTime).PHP_EOL;
+    $total_parse_time += $audio->_parsingTime;
+}
+array_shift($argv);
+echo sprintf('%15s | %4s | %7s | %7s | %11s | %10s | %4s', 'File name', 'dur.', 'bitrate', 'sample', 'song', 'artist',
+    'time').PHP_EOL;
+$total_parse_time = 0;
+foreach ($argv as $arg) {
+    if (is_dir($arg)) {
+        foreach (glob(rtrim($arg, DIRECTORY_SEPARATOR).DIRECTORY_SEPARATOR.'*.mp3') as $f) {
+            if (is_file($f))
+                analyze($f, $total_parse_time);
+        }
+    } else if (is_file($arg))
+        analyze($arg, $total_parse_time);
+}
+echo sprintf('%79s', 'Total parsing time: '.round($total_parse_time, 5)).PHP_EOL;
