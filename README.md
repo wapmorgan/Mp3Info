@@ -35,13 +35,13 @@ $audio = new Mp3Info($fileName, true);
 $audio = new Mp3Info($fileName);
 ```
 And after that access object properties to get audio information:
-```
+```php
 echo 'Audio duration: '.floor($audio->duration / 60).' min '.floor($audio->duration % 60).' sec'.PHP_EOL;
 echo 'Audio bitrate: '.($audio->bitRate / 1000).' kb/s'.PHP_EOL;
 // and so on ...
 ```
 To access id3v1 tags use `$tags1` property:
-```
+```php
 echo 'Song '.$audio->tags1['song'].' from '.$audio->tags1['artist'].PHP_EOL;
 ```
 
@@ -54,7 +54,7 @@ A bunch - **878 megabytes** of mp3 files (**33 tracks** with a total length **8:
 
 # Console scanner
 To test Mp3Info you can use built-in script that scans dirs and analyzes all mp3-files inside them. To launch script against current folder:
-```
+```sh
 php bin/scan ./
 ```
 
