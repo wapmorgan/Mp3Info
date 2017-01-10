@@ -4,6 +4,8 @@ require __DIR__.'/../vendor/autoload.php';
 
 use wapmorgan\Mp3Info\Mp3Info;
 
+$compare = class_exists('getID3');
+
 if ($argc == 1)
     die('Specify file names to scan');
 
@@ -29,17 +31,35 @@ function analyze($filename, &$total_duration, &$total_parse_time) {
     $total_duration += $audio->duration;
     $total_parse_time += $audio->_parsingTime;
 }
+
+
+function analyzeId3($filename, &$total_parse_time) {
+    static $ID3;
+    if ($ID3 === null) $ID3 = new getID3();
+
+    $t = microtime(true);
+    $info = $ID3->analyze($filename);
+    $parse_time = microtime(true) - $t;
+    echo sprintf('%15s | %4s | %7s | %0.1fkHz | %-11s | %-10s | %.5f', substrIfLonger(basename($filename), 15), $info['playtime_string'], $info['audio']['bitrate_mode'] == 'vbr' ? 'vbr' : floor($info['audio']['bitrate'] / 1000).'kbps', ($info['audio']['sample_rate'] / 1000), isset($info['tags']['title']) ? substrIfLonger($info['tags']['title'], 11) : null, isset($info['tags']['artist']) ? substrIfLonger($info['tags']['artist'], 10) : null, $parse_time).PHP_EOL;
+    $total_parse_time += $parse_time;
+}
+
 array_shift($argv);
 echo sprintf('%15s | %4s | %7s | %7s | %11s | %10s | %4s', 'File name', 'dur.', 'bitrate', 'sample', 'song', 'artist',
     'time').PHP_EOL;
-$total_duration = $total_parse_time = 0;
+$total_duration = $total_parse_time = $id3_parse_time = 0;
 foreach ($argv as $arg) {
     if (is_dir($arg)) {
         foreach (glob(rtrim($arg, DIRECTORY_SEPARATOR).DIRECTORY_SEPARATOR.'*.mp3') as $f) {
-            if (is_file($f))
+            if (is_file($f)) {
                 analyze($f, $total_duration, $total_parse_time);
+                if ($compare) analyzeId3($f, $id3_parse_time);
+            }
         }
-    } else if (is_file($arg))
+    } else if (is_file($arg)) {
         analyze($arg, $total_duration, $total_parse_time);
+        if ($compare) analyzeId3($f, $id3_parse_time);
+    }
 }
 echo sprintf('%42s | %34s', 'Total duration: '.formatTime($total_duration), 'Total parsing time: '.round($total_parse_time, 5)).PHP_EOL;
+if ($compare) echo sprintf('%79s', 'Total getId3 parsing time: '.round($id3_parse_time, 5)).PHP_EOL;
