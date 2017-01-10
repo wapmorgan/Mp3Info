@@ -48,7 +48,7 @@ echo 'Song '.$audio->tags1['song'].' from '.$audio->tags1['artist'].PHP_EOL;
 # Performance
 
 * Typically it parses one mp3-file with size around 6-7 mb in less that 0.001 sec.
-* Few files constant & variable bitRate with total duration 5:22:28 are parsed in 1.76 sec.
+* List of 112 files with constant & variable bitRate with total duration 5:22:28 are parsed in 1.76 sec.
 
 # Console scanner
 To test Mp3Info you can use built-in script that scans dirs and analyzes all mp3-files inside them. To launch script against current folder:
