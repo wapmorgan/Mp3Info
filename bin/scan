@@ -20,7 +20,7 @@ function substrIfLonger($string, $maxLength) {
     return $string;
 }
 
-function analyze($filename, &$total_duration, &$total_parse_time) {
+function analyze($filename, &$total_duration, &$total_parse_time, $id3v2 = false) {
     if (!is_readable($filename)) return;
     try {
     $audio = new Mp3Info($filename, true);
@@ -28,6 +28,17 @@ function analyze($filename, &$total_duration, &$total_parse_time) {
         return null;
     }
     echo sprintf('%15s | %4s | %7s | %0.1fkHz | %-11s | %-10s | %.5f', substrIfLonger(basename($filename), 15), formatTime($audio->duration), $audio->isVbr ? 'vbr' : ($audio->bitRate / 1000).'kbps', ($audio->sampleRate / 1000), isset($audio->tags1['song']) ? substrIfLonger($audio->tags1['song'], 11) : null, isset($audio->tags1['artist']) ? substrIfLonger($audio->tags1['artist'], 10) : null, $audio->_parsingTime).PHP_EOL;
+    if ($id3v2 && !empty($audio->tags2)) {
+        foreach ($audio->tags2 as $tag=>$value) {
+            echo '    '.$tag.': ';
+            if ($tag == 'COMM') {
+                foreach ($value as $lang => $comment) {
+                    echo '['.$lang.'] '.$comment['short'].'; '.$comment['actual'].PHP_EOL;
+                }
+            } else
+            echo $value.PHP_EOL;
+        }
+    }
     $total_duration += $audio->duration;
     $total_parse_time += $audio->_parsingTime;
 }
@@ -57,7 +68,7 @@ foreach ($argv as $arg) {
             }
         }
     } else if (is_file($arg)) {
-        analyze($arg, $total_duration, $total_parse_time);
+        analyze($arg, $total_duration, $total_parse_time, true);
         if ($compare) analyzeId3($f, $id3_parse_time);
     }
 }

@@ -11,12 +11,12 @@ This class extracts information from mpeg/mp3 audio:
 
 | Audio        | id3v1 Tags | id3v2 Tags |
 |--------------|------------|------------|
-| duration     | song       |            |
-| bitRate      | artist     |            |
-| sampleRate   | album      |            |
-| channel      | year       |            |
-| framesCount  | comment    |            |
-| codecVersion | genre      |            |
+| duration     | song       | TIT2       |
+| bitRate      | artist     | TPE1       |
+| sampleRate   | album      | TALB       |
+| channel      | year       | TYER       |
+| framesCount  | comment    | COMM       |
+| codecVersion | genre      | TCON       |
 | layerVersion |            |            |
 
 1. Usage
