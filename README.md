@@ -32,19 +32,24 @@ This class extracts information from mpeg/mp3 audio:
 After creating an instance of `Mp3Info` with passing filename as the first argument to the constructor, you can retrieve data from object properties (listed below).
 
 If you need parse tags, you should set 2nd argument this way:
+
 ```php
 use wapmorgan\Mp3Info\Mp3Info;
 $audio = new Mp3Info($fileName, true);
 // or omit 2nd argument to increase parsing speed
 $audio = new Mp3Info($fileName);
 ```
+
 And after that access object properties to get audio information:
+
 ```php
 echo 'Audio duration: '.floor($audio->duration / 60).' min '.floor($audio->duration % 60).' sec'.PHP_EOL;
 echo 'Audio bitrate: '.($audio->bitRate / 1000).' kb/s'.PHP_EOL;
 // and so on ...
 ```
+
 To access id3v1 tags use `$tags1` property:
+
 ```php
 echo 'Song '.$audio->tags1['song'].' from '.$audio->tags1['artist'].PHP_EOL;
 ```
@@ -58,7 +63,8 @@ echo 'Song '.$audio->tags1['song'].' from '.$audio->tags1['artist'].PHP_EOL;
 
 # Console scanner
 To test Mp3Info you can use built-in script that scans dirs and analyzes all mp3-files inside them. To launch script against current folder:
-```sh
+
+```bash
 php bin/scan ./
 ```
 
