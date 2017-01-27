@@ -52,7 +52,7 @@ echo 'Song '.$audio->tags1['song'].' from '.$audio->tags1['artist'].PHP_EOL;
 # Performance
 
 * Typically it parses one mp3-file with size around 6-7 mb in less than 0.001 sec.
-* List of 112 files with constant & variable bitRate with total duration 5:22:28 are parsed in 1.76 sec. *getId3* library againts exactly the same mp3 list works for 8x-10x slower - 9.9 sec.
+* List of 112 files with constant & variable bitRate with total duration 5:22:28 are parsed in 1.76 sec. *getId3* library against exactly the same mp3 list works for 8x-10x slower - 9.9 sec.
 * If you want, there's a very easy way to compare. Just install `nass600/get-id3` package and run console scanner against any folder with audios. It will print time that Mp3Info spent and that getId3.
 
 
@@ -63,6 +63,7 @@ php bin/scan ./
 ```
 
 # API
+
 ### Audio information
 
 | Property        | Description                                                        | Values                                                      |
