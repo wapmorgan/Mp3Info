@@ -159,8 +159,8 @@ class Mp3Info {
      * $mode is self::META, self::TAGS or their combination.
      */
     public function __construct($filename, $parseTags = false) {
-        if (is_null(self::$_bitRateTable)) self::$_bitRateTable = require dirname(__FILE__).'/../data/bitRateTable.php';
-        if (is_null(self::$_sampleRateTable)) self::$_sampleRateTable = require dirname(__FILE__).'/../data/sampleRateTable.php';
+        if (is_null(self::$_bitRateTable)) self::$_bitRateTable = require '../data/bitRateTable.php';
+        if (is_null(self::$_sampleRateTable)) self::$_sampleRateTable = require '../data/sampleRateTable.php';
 
         if (!file_exists($filename))
             throw new Exception("File ".$filename." is not present!");
