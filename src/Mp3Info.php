@@ -297,8 +297,10 @@ class Mp3Info {
         $this->tags1['artist'] = trim(fread($fp, 30));
         $this->tags1['album'] = trim(fread($fp, 30));
         $this->tags1['year'] = trim(fread($fp, 4));
-        $this->tags1['comment'] = trim(fread($fp, 30));
-        $this->tags1['genre'] = hexdec(fread($fp, 1));
+        $this->tags1['comment'] = trim(fread($fp, 28));
+        fseek($fp, 1, SEEK_CUR);
+        $this->tags1['track'] = ord(fread($fp, 1));
+        $this->tags1['genre'] = ord(fread($fp, 1));
         return 128;
     }
 
@@ -483,7 +485,14 @@ class Mp3Info {
                 // case 'TPE4':    # Interpreted, remixed, or otherwise modified by
                 // case 'TPOS':    # Part of a set
                 // case 'TPUB':    # Publisher
-                // case 'TRCK':    # Track number/Position in set
+                case 'TRCK':    # Track number/Position in set
+                    $raw = fread($fp, $frame_size);
+                    $data = unpack("C1encoding/A".($frame_size - 1)."information", $raw);
+                    if ((bool)($data['encoding'] == 0x00)) # ISO-8859-1
+                        $this->tags2[$frame_id] = mb_convert_encoding($data['information'], 'utf-8', 'iso-8859-1');
+                    else # utf-16
+                        $this->tags2[$frame_id] = mb_convert_encoding($data['information'], 'utf-8', 'utf-16');
+                    break;
                 // case 'TRDA':    # Recording dates
                 // case 'TRSN':    # Internet radio station name
                 // case 'TRSO':    # Internet radio station owner

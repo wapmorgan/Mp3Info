@@ -27,7 +27,7 @@ function analyze($filename, &$total_duration, &$total_parse_time, $id3v2 = false
     } catch (Exception $e) {
         return null;
     }
-    echo sprintf('%15s | %4s | %7s | %0.1fkHz | %-11s | %-10s | %.5f', substrIfLonger(basename($filename), 15), formatTime($audio->duration), $audio->isVbr ? 'vbr' : ($audio->bitRate / 1000).'kbps', ($audio->sampleRate / 1000), isset($audio->tags1['song']) ? substrIfLonger($audio->tags1['song'], 11) : null, isset($audio->tags1['artist']) ? substrIfLonger($audio->tags1['artist'], 10) : null, $audio->_parsingTime).PHP_EOL;
+    echo sprintf('%15s | %4s | %7s | %0.1fkHz | %-11s | %-10s | %5d | %.5f', substrIfLonger(basename($filename), 15), formatTime($audio->duration), $audio->isVbr ? 'vbr' : ($audio->bitRate / 1000).'kbps', ($audio->sampleRate / 1000), isset($audio->tags1['song']) ? substrIfLonger($audio->tags1['song'], 11) : null, isset($audio->tags1['artist']) ? substrIfLonger($audio->tags1['artist'], 10) : null, isset($audio->tags1['track']) ? substrIfLonger($audio->tags1['track'], 5) : null, $audio->_parsingTime).PHP_EOL;
     if ($id3v2 && !empty($audio->tags2)) {
         foreach ($audio->tags2 as $tag=>$value) {
             echo '    '.$tag.': ';
@@ -51,12 +51,12 @@ function analyzeId3($filename, &$total_parse_time) {
     $t = microtime(true);
     $info = $ID3->analyze($filename);
     $parse_time = microtime(true) - $t;
-    echo sprintf('%15s | %4s | %7s | %0.1fkHz | %-11s | %-10s | %.5f', substrIfLonger(basename($filename), 15), $info['playtime_string'], $info['audio']['bitrate_mode'] == 'vbr' ? 'vbr' : floor($info['audio']['bitrate'] / 1000).'kbps', ($info['audio']['sample_rate'] / 1000), isset($info['tags']['title']) ? substrIfLonger($info['tags']['title'], 11) : null, isset($info['tags']['artist']) ? substrIfLonger($info['tags']['artist'], 10) : null, $parse_time).PHP_EOL;
+    echo sprintf('%15s | %4s | %7s | %0.1fkHz | %-11s | %-10s | %.5f |  %5d', substrIfLonger(basename($filename), 15), $info['playtime_string'], $info['audio']['bitrate_mode'] == 'vbr' ? 'vbr' : floor($info['audio']['bitrate'] / 1000).'kbps', ($info['audio']['sample_rate'] / 1000), isset($info['tags']['title']) ? substrIfLonger($info['tags']['title'], 11) : null, isset($info['tags']['artist']) ? substrIfLonger($info['tags']['artist'], 10) : null, null, $parse_time).PHP_EOL;
     $total_parse_time += $parse_time;
 }
 
 array_shift($argv);
-echo sprintf('%15s | %4s | %7s | %7s | %11s | %10s | %4s', 'File name', 'dur.', 'bitrate', 'sample', 'song', 'artist',
+echo sprintf('%15s | %4s | %7s | %7s | %11s | %10s | %5s | %4s', 'File name', 'dur.', 'bitrate', 'sample', 'song', 'artist', 'track',
     'time').PHP_EOL;
 $total_duration = $total_parse_time = $id3_parse_time = 0;
 foreach ($argv as $arg) {

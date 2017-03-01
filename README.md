@@ -16,8 +16,8 @@ This class extracts information from mpeg/mp3 audio:
 | sampleRate   | album      | TALB       |
 | channel      | year       | TYER       |
 | framesCount  | comment    | COMM       |
-| codecVersion | genre      | TCON       |
-| layerVersion |            |            |
+| codecVersion | track      | TRCK       |
+| layerVersion | genre      | TCON       |
 
 1. Usage
 2. Performance
