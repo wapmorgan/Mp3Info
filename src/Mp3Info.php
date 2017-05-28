@@ -163,7 +163,7 @@ class Mp3Info {
         if (is_null(self::$_sampleRateTable)) self::$_sampleRateTable = require dirname(__FILE__).'/../data/sampleRateTable.php';
 
         if (!file_exists($filename))
-            throw new Exception("File ".$filename." is not present!");
+            throw new \Exception("File ".$filename." is not present!");
         $mode = $parseTags ? self::META | self::TAGS : self::META;
         $this->audioSize = $this->parseAudio($this->_fileName = $filename, $this->_fileSize = filesize($filename), $mode);
     }
