@@ -1,7 +1,7 @@
 # Mp3Info
 The fastest PHP library to get mp3 tags&meta.
 
-[![Composer package](http://xn--e1adiijbgl.xn--p1acf/badge/wapmorgan/mp3info)](https://packagist.org/packages/wapmorgan/mp3info)
+[![Composer package](http://composer.network/badge/wapmorgan/mp3info)](https://packagist.org/packages/wapmorgan/mp3info)
 [![Latest Stable Version](https://poser.pugx.org/wapmorgan/mp3info/v/stable)](https://packagist.org/packages/wapmorgan/mp3info)
 [![Total Downloads](https://poser.pugx.org/wapmorgan/mp3info/downloads)](https://packagist.org/packages/wapmorgan/mp3info)
 [![Latest Unstable Version](https://poser.pugx.org/wapmorgan/mp3info/v/unstable)](https://packagist.org/packages/wapmorgan/mp3info)
