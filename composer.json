@@ -8,5 +8,6 @@
 		"psr-4": {
             "wapmorgan\\Mp3Info\\": "src/"
         }
-	}
+	},
+	"bin": ["bin/mp3scan"]
 }
