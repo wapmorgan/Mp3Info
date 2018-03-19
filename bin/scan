@@ -23,8 +23,9 @@ function substrIfLonger($string, $maxLength) {
 function analyze($filename, &$total_duration, &$total_parse_time, $id3v2 = false) {
     if (!is_readable($filename)) return;
     try {
-    $audio = new Mp3Info($filename, true);
+        $audio = new Mp3Info($filename, true);
     } catch (Exception $e) {
+        var_dump($filename.': '.$e->getMessage());
         return null;
     }
     echo sprintf('%15s | %4s | %7s | %0.1fkHz | %-11s | %-10s | %5d | %.5f', substrIfLonger(basename($filename), 15), formatTime($audio->duration), $audio->isVbr ? 'vbr' : ($audio->bitRate / 1000).'kbps', ($audio->sampleRate / 1000), isset($audio->tags1['song']) ? substrIfLonger($audio->tags1['song'], 11) : null, isset($audio->tags1['artist']) ? substrIfLonger($audio->tags1['artist'], 10) : null, isset($audio->tags1['track']) ? substrIfLonger($audio->tags1['track'], 5) : null, $audio->_parsingTime).PHP_EOL;

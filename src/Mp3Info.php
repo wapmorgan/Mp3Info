@@ -66,7 +66,7 @@ class Mp3Info {
 
     /**
      * Audio size in bytes. Note that this value is NOT equals file size.
-     * @var int|long
+     * @var int
      */
     public $audioSize;
     /**
@@ -76,7 +76,7 @@ class Mp3Info {
     public $_fileName;
     /**
      * Contains file size
-     * @var long
+     * @var int
      */
     public $_fileSize;
     /**
@@ -157,6 +157,7 @@ class Mp3Info {
 
     /**
      * $mode is self::META, self::TAGS or their combination.
+     * @throws \Exception
      */
     public function __construct($filename, $parseTags = false) {
         if (is_null(self::$_bitRateTable)) self::$_bitRateTable = require dirname(__FILE__).'/../data/bitRateTable.php';
@@ -174,14 +175,19 @@ class Mp3Info {
      * ID3V2 TAG - provides a lot of meta data. [optional]
      * MPEG AUDIO FRAMES - contains audio data. A frame consists of a frame header and a frame data. The first frame may contain extra information about mp3 (marked with "Xing" or "Info" string). Rest of frames can contain only audio data.
      * ID3V1 TAG - provides a few of meta data. [optional]
+     * @param $filename
+     * @param $fileSize
+     * @param $mode
+     * @return float|int
+     * @throws \Exception
      */
-    private function parseAudio($filename, $filesize, $mode) {
+    private function parseAudio($filename, $fileSize, $mode) {
         $time = microtime(true);
         $fp = fopen($filename, "rb");
 
         /** Size of audio data (exclude tags size)
          * @var int */
-        $audioSize = $filesize;
+        $audioSize = $fileSize;
 
         // parse tags
         if (fread($fp, 3) == self::TAG2_SYNC) {
@@ -197,7 +203,7 @@ class Mp3Info {
                 $audioSize -= ($id3v2Size = $size);
             }
         }
-        fseek($fp, $filesize - 128);
+        fseek($fp, $fileSize - 128);
         if (fread($fp, 3) == self::TAG1_SYNC) {
             if ($mode & self::TAGS) $audioSize -= $this->readId3v1Body($fp);
             else $audioSize -= 128;
@@ -227,11 +233,28 @@ class Mp3Info {
 
     /**
      * Read first frame information.
+     * @param resource $fp
      * @return int Number of frames (if present if first frame)
+     * @throws \Exception
      */
     private function readFirstFrame($fp) {
         $pos = ftell($fp);
         $headerBytes = $this->readBytes($fp, 4);
+
+        // if bytes are null, search for something else 1024 bytes forward
+        if (array_unique($headerBytes) === [0]) {
+            $limit_pos = $pos + 2048;
+            do {
+                $pos = ftell($fp);
+                $bytes = $this->readBytes($fp, 1);
+                if ($bytes[0] !== 0) {
+                    fseek($fp, $pos);
+                    $headerBytes = $this->readBytes($fp, 4);
+                    break;
+                }
+            } while (ftell($fp) < $limit_pos);
+        }
+
         if (($headerBytes[0] & 0xFF) != 0xFF || (($headerBytes[1] >> 5) & 0b111) != 0b111) throw new \Exception("At ".$pos."(".dechex($pos).") should be the first frame header!");
 
         switch ($headerBytes[1] >> 3 & 0b11) {
@@ -349,7 +372,9 @@ class Mp3Info {
      *  b - Extended header
      *  c - Experimental indicator
      *  d - Footer present
+     * @param resource $fp
      * @return int Returns length of id3v2 tag.
+     * @throws \Exception
      */
     private function readId3v2Body($fp) {
         // read the rest of the id3v2 header
@@ -377,11 +402,14 @@ class Mp3Info {
             {}
         }
         $size = substr($data, 8, 32);
+
         // some fucking shit
+        // getting only 7 of 8 bits of size bytes
         $sizes = str_split($size, 8);
         array_walk($sizes, function (&$value) { $value = substr($value, 1);});
         $size = implode("", $sizes);
         $size = bindec($size);
+
         if ($this->id3v2MajorVersion == 2)  // parse id3v2.2.0 body
             /*throw new \Exception('NEED TO PARSE id3v2.2.0 flags!');*/
             {}
