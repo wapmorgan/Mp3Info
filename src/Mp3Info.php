@@ -241,13 +241,13 @@ class Mp3Info {
         $pos = ftell($fp);
         $headerBytes = $this->readBytes($fp, 4);
 
-        // if bytes are null, search for something else 1024 bytes forward
-        if (array_unique($headerBytes) === [0]) {
+        // if bytes are null, search for something else 2048 bytes forward
+        if ($headerBytes[0] !== 0xFF) {
             $limit_pos = $pos + 2048;
             do {
                 $pos = ftell($fp);
                 $bytes = $this->readBytes($fp, 1);
-                if ($bytes[0] !== 0) {
+                if ($bytes[0] === 0xFF) {
                     fseek($fp, $pos);
                     $headerBytes = $this->readBytes($fp, 4);
                     break;
@@ -255,7 +255,7 @@ class Mp3Info {
             } while (ftell($fp) < $limit_pos);
         }
 
-        if (($headerBytes[0] & 0xFF) != 0xFF || (($headerBytes[1] >> 5) & 0b111) != 0b111) throw new \Exception("At ".$pos."(".dechex($pos).") should be the first frame header!");
+        if ($headerBytes[0] !== 0xFF || (($headerBytes[1] >> 5) & 0b111) != 0b111) throw new \Exception("At 0x".$pos."(".dechex($pos).") should be the first frame header!");
 
         switch ($headerBytes[1] >> 3 & 0b11) {
             case 0b10: $this->codecVersion = self::MPEG_2; break;
