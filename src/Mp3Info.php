@@ -1,6 +1,8 @@
 <?php
 namespace wapmorgan\Mp3Info;
 
+use Exception;
+
 /**
  * This class extracts information about an mpeg audio. (supported mpeg versions: MPEG-1, MPEG-2)
  * (supported mpeg audio layers: 1, 2, 3).
@@ -20,10 +22,12 @@ namespace wapmorgan\Mp3Info;
  * * {@link http://gabriel.mp3-tech.org/mp3infotag.html Xing, Info and Lame tags specifications}
  */
 class Mp3Info {
-    const TAG1_SYNC = "TAG";
-    const TAG2_SYNC = "ID3";
-    const VBR_SYNC = "Xing";
-    const CBR_SYNC = "Info";
+    const TAG1_SYNC = 'TAG';
+    const TAG2_SYNC = 'ID3';
+    const VBR_SYNC = 'Xing';
+    const CBR_SYNC = 'Info';
+
+    const FRAME_SYNC = 0xffe0;
 
     const META = 1;
     const TAGS = 2;
@@ -35,10 +39,10 @@ class Mp3Info {
     const LAYER_2 = 2;
     const LAYER_3 = 3;
 
-    const STEREO = "stereo";
-    const JOINT_STEREO = "joint_stereo";
-    const DUAL_MONO = "dual_mono";
-    const MONO = "mono";
+    const STEREO = 'stereo';
+    const JOINT_STEREO = 'joint_stereo';
+    const DUAL_MONO = 'dual_mono';
+    const MONO = 'mono';
 
     /**
      * Boolean trigger to enable / disable trace output
@@ -157,11 +161,17 @@ class Mp3Info {
 
     /**
      * $mode is self::META, self::TAGS or their combination.
+     *
+     * @param string $filename
+     * @param bool $parseTags
+     *
      * @throws \Exception
      */
     public function __construct($filename, $parseTags = false) {
-        if (is_null(self::$_bitRateTable)) self::$_bitRateTable = require dirname(__FILE__).'/../data/bitRateTable.php';
-        if (is_null(self::$_sampleRateTable)) self::$_sampleRateTable = require dirname(__FILE__).'/../data/sampleRateTable.php';
+        if (self::$_bitRateTable === null)
+            self::$_bitRateTable = require dirname(__FILE__).'/../data/bitRateTable.php';
+        if (self::$_sampleRateTable === null)
+            self::$_sampleRateTable = require dirname(__FILE__).'/../data/sampleRateTable.php';
 
         if (!file_exists($filename))
             throw new \Exception("File ".$filename." is not present!");
@@ -183,7 +193,7 @@ class Mp3Info {
      */
     private function parseAudio($filename, $fileSize, $mode) {
         $time = microtime(true);
-        $fp = fopen($filename, "rb");
+        $fp = fopen($filename, 'rb');
 
         /** Size of audio data (exclude tags size)
          * @var int */
@@ -278,10 +288,10 @@ class Mp3Info {
         }
 
         switch ($this->codecVersion.($this->channel == self::MONO ? 'mono' : 'stereo')) {
-            case "1stereo": $offset = 36; break;
-            case "1mono": $offset = 21; break;
-            case "2stereo": $offset = 21; break;
-            case "2mono": $offset = 13; break;
+            case '1stereo': $offset = 36; break;
+            case '1mono': $offset = 21; break;
+            case '2stereo': $offset = 21; break;
+            case '2mono': $offset = 13; break;
         }
         fseek($fp, $pos + $offset);
         if (fread($fp, 4) == self::VBR_SYNC) {
@@ -379,7 +389,7 @@ class Mp3Info {
     private function readId3v2Body($fp) {
         // read the rest of the id3v2 header
         $raw = fread($fp, 7);
-        $data = unpack("cmajor_version/cminor_version/H*", $raw);
+        $data = unpack('cmajor_version/cminor_version/H*', $raw);
         $this->id3v2MajorVersion = $data['major_version'];
         $this->id3v2MinorVersion = $data['minor_version'];
         $data = str_pad(base_convert($data[1], 16, 2), 40, 0, STR_PAD_LEFT);
@@ -436,7 +446,7 @@ class Mp3Info {
                 break;
             }
 
-            $data = unpack("Nframe_size/H2flags", substr($raw, 4));
+            $data = unpack('Nframe_size/H2flags', substr($raw, 4));
             $frame_size = $data['frame_size'];
             $flags = base_convert($data['flags'], 16, 2);
             $this->id3v2TagsFlags[$frame_id] = array(
@@ -455,24 +465,16 @@ class Mp3Info {
 
                 ################# Text information frames
                 case 'TALB':    # Album/Movie/Show title
-                    $raw = fread($fp, $frame_size);
-                    // var_dump($raw);
-                    $data = unpack("C1encoding/A".($frame_size - 1)."information", $raw);
-                    if ((bool)($data['encoding'] == 0x00)) # ISO-8859-1
-                        $this->tags2[$frame_id] = mb_convert_encoding($data['information'], 'utf-8', 'iso-8859-1');
-                    else # utf-16
-                        $this->tags2[$frame_id] = mb_convert_encoding($data['information'], 'utf-8', 'utf-16');
+                case 'TCON':    # Content type
+                case 'TYER':    # Year
+                case 'TXXX':    # User defined text information frame
+                case 'TRCK':    # Track number/Position in set
+                case 'TIT2':    # Title/songname/content description
+                case 'TPE1':    # Lead performer(s)/Soloist(s)
+                    $this->tags2[$frame_id] = $this->handleTextFrame($frame_size, fread($fp, $frame_size));
                     break;
                 // case 'TBPM':    # BPM (beats per minute)
                 // case 'TCOM':    # Composer
-                case 'TCON':    # Content type
-                    $raw = fread($fp, $frame_size);
-                    $data = unpack("C1encoding/A".($frame_size - 1)."information", $raw);
-                    if ((bool)($data['encoding'] == 0x00)) # ISO-8859-1
-                        $this->tags2[$frame_id] = mb_convert_encoding($data['information'], 'utf-8', 'iso-8859-1');
-                    else # utf-16
-                        $this->tags2[$frame_id] = mb_convert_encoding($data['information'], 'utf-8', 'utf-16');
-                    break;
                 // case 'TCOP':    # Copyright message
                 // case 'TDAT':    # Date
                 // case 'TDLY':    # Playlist delay
@@ -481,14 +483,6 @@ class Mp3Info {
                 // case 'TFLT':    # File type
                 // case 'TIME':    # Time
                 // case 'TIT1':    # Content group description
-                case 'TIT2':    # Title/songname/content description
-                    $raw = fread($fp, $frame_size);
-                    $data = unpack("C1encoding/A".($frame_size - 1)."information", $raw);
-                    if ((bool)($data['encoding'] == 0x00)) # ISO-8859-1
-                        $this->tags2[$frame_id] = mb_convert_encoding($data['information'], 'utf-8', 'iso-8859-1');
-                    else # utf-16
-                        $this->tags2[$frame_id] = mb_convert_encoding($data['information'], 'utf-8', 'utf-16');
-                    break;
                 // case 'TIT3':    # Subtitle/Description refinement
                 // case 'TKEY':    # Initial key
                 // case 'TLAN':    # Language(s)
@@ -500,49 +494,18 @@ class Mp3Info {
                 // case 'TOPE':    # Original artist(s)/performer(s)
                 // case 'TORY':    # Original release year
                 // case 'TOWN':    # File owner/licensee
-                case 'TPE1':    # Lead performer(s)/Soloist(s)
-                    $raw = fread($fp, $frame_size);
-                    $data = unpack("C1encoding/A".($frame_size - 1)."information", $raw);
-                    if ((bool)($data['encoding'] == 0x00)) # ISO-8859-1
-                        $this->tags2[$frame_id] = mb_convert_encoding($data['information'], 'utf-8', 'iso-8859-1');
-                    else # utf-16
-                        $this->tags2[$frame_id] = mb_convert_encoding($data['information'], 'utf-8', 'utf-16');
-                    break;
                 // case 'TPE2':    # Band/orchestra/accompaniment
                 // case 'TPE3':    # Conductor/performer refinement
                 // case 'TPE4':    # Interpreted, remixed, or otherwise modified by
                 // case 'TPOS':    # Part of a set
                 // case 'TPUB':    # Publisher
-                case 'TRCK':    # Track number/Position in set
-                    $raw = fread($fp, $frame_size);
-                    $data = unpack("C1encoding/A".($frame_size - 1)."information", $raw);
-                    if ((bool)($data['encoding'] == 0x00)) # ISO-8859-1
-                        $this->tags2[$frame_id] = mb_convert_encoding($data['information'], 'utf-8', 'iso-8859-1');
-                    else # utf-16
-                        $this->tags2[$frame_id] = mb_convert_encoding($data['information'], 'utf-8', 'utf-16');
-                    break;
                 // case 'TRDA':    # Recording dates
                 // case 'TRSN':    # Internet radio station name
                 // case 'TRSO':    # Internet radio station owner
                 // case 'TSIZ':    # Size
                 // case 'TSRC':    # ISRC (international standard recording code)
                 // case 'TSSE':    # Software/Hardware and settings used for encoding
-                case 'TYER':    # Year
-                    $raw = fread($fp, $frame_size);
-                    $data = unpack("C1encoding/A".($frame_size - 1)."information", $raw);
-                    if ((bool)($data['encoding'] == 0x00)) # ISO-8859-1
-                        $this->tags2[$frame_id] = mb_convert_encoding($data['information'], 'utf-8', 'iso-8859-1');
-                    else # utf-16
-                        $this->tags2[$frame_id] = mb_convert_encoding($data['information'], 'utf-8', 'utf-16');
-                    break;
-                case 'TXXX':    # User defined text information frame
-                    $raw = fread($fp, $frame_size);
-                    $data = unpack("C1encoding/A".($frame_size - 1)."information", $raw);
-                    if ((bool)($data['encoding'] == 0x00)) # ISO-8859-1
-                        $this->tags2[$frame_id] = mb_convert_encoding($data['information'], 'utf-8', 'iso-8859-1');
-                    else # utf-16
-                        $this->tags2[$frame_id] = mb_convert_encoding($data['information'], 'utf-8', 'utf-16');
-                    break;
+
                 ################# Text information frames
 
                 ################# URL link frames
@@ -583,7 +546,7 @@ class Mp3Info {
                 case 'COMM':    # Comments
                     $dataEnd = ftell($fp) + $frame_size;
                     $raw = fread($fp, 4);
-                    $data = unpack("C1encoding/A3language", $raw);
+                    $data = unpack('C1encoding/A3language', $raw);
                     // read until \null character
                     $short_description = null;
                     $last_null = false;
@@ -622,8 +585,7 @@ class Mp3Info {
                 // case 'GEOB':    # General encapsulated object
                 //     break;
                 case 'PCNT':    # Play counter
-                    $raw = fread($fp, $frame_size);
-                    $data = unpack("L", $raw);
+                    $data = unpack('L', fread($fp, $frame_size));
                     $this->tags2[$frame_id] = $data[1];
                     break;
                 // case 'POPM':    # Popularimeter
@@ -657,15 +619,35 @@ class Mp3Info {
 
     /**
      * Simple function that checks mpeg-audio correctness of given file.
-     * Actually it checks that first 3 bytes of file is a id3v2 tag mark or that first 11 bits of file is a frame header sync mark.
-     * To perform full test create an instance of Mp3Info with given file.
+     * Actually it checks that first 3 bytes of file is a id3v2 tag mark or
+     * that first 11 bits of file is a frame header sync mark. To perform full
+     * test create an instance of Mp3Info with given file.
+     *
      * @param string $filename File to be tested.
+     *
      * @return boolean True if file is looks correct, False otherwise.
+     * @throws \Exception
      */
     static public function isValidAudio($filename) {
         if (!file_exists($filename))
-            throw new Exception("File ".$filename." is not present!");
+            throw new Exception('File '.$filename.' is not present!');
         $raw = file_get_contents($filename, false, null, 0, 3);
-        return ($raw == self::TAG2_SYNC || substr(base_convert(implode(null, unpack('H*', $raw)), 16, 2), 0, 11) == self::FRAME_SYNC);
+        return ($raw == self::TAG2_SYNC || (self::FRAME_SYNC == (unpack('n*', $raw)[1] & self::FRAME_SYNC)));
+    }
+
+    /**
+     * @param $frameSize
+     * @param $raw
+     *
+     * @return array
+     */
+    private function handleTextFrame($frameSize, $raw)
+    {
+        $data = unpack('C1encoding/A' . ($frameSize - 1) . 'information', $raw);
+
+        if ($data['encoding'] == 0x00) # ISO-8859-1
+            return mb_convert_encoding($data['information'], 'utf-8', 'iso-8859-1');
+        else # utf-16
+            return mb_convert_encoding($data['information'], 'utf-8', 'utf-16');
     }
 }

@@ -1,5 +1,7 @@
 #!/usr/bin/php
 <?php
+use wapmorgan\Mp3Info\Mp3Info;
+
 $paths = [
     // as a root package or phar
     __DIR__.'/../vendor/autoload.php',
@@ -18,77 +20,178 @@ function init_composer(array $paths) {
     return false;
 }
 if (!init_composer($paths)) die('Run `composer install` firstly.'.PHP_EOL);
-
-use wapmorgan\Mp3Info\Mp3Info;
-
-$compare = class_exists('getID3');
-
 if ($argc == 1)
     die('Specify file names to scan');
 
-function formatTime($time) {
-    return floor($time / 60).':'.str_pad(floor($time % 60), 2, 0, STR_PAD_LEFT);
-}
+class Mp3InfoConsoleRunner {
 
-function substrIfLonger($string, $maxLength) {
-    if (strlen($string) > $maxLength) {
-        return substr($string, 0, $maxLength-3).'...';
-    }
-    return $string;
-}
+    /** @var array */
+    protected $widths = array(
+        'filename' => 0.3,
+        'duration' => 6,
+        'bitRate' => 6,
+        'sampleRate' => 6,
+        'song' => 0.13,
+        'artist' => 0.125,
+        'track' => 5,
+        'parseTime' => 4,
+    );
 
-function analyze($filename, &$total_duration, &$total_parse_time, $id3v2 = false) {
-    if (!is_readable($filename)) return;
-    try {
-        $audio = new Mp3Info($filename, true);
-    } catch (Exception $e) {
-        var_dump($filename.': '.$e->getMessage());
-        return null;
-    }
-    echo sprintf('%15s | %4s | %7s | %0.1fkHz | %-11s | %-10s | %5d | %.5f', substrIfLonger(basename($filename), 15), formatTime($audio->duration), $audio->isVbr ? 'vbr' : ($audio->bitRate / 1000).'kbps', ($audio->sampleRate / 1000), isset($audio->tags1['song']) ? substrIfLonger($audio->tags1['song'], 11) : null, isset($audio->tags1['artist']) ? substrIfLonger($audio->tags1['artist'], 10) : null, isset($audio->tags1['track']) ? substrIfLonger($audio->tags1['track'], 5) : null, $audio->_parsingTime).PHP_EOL;
-    if ($id3v2 && !empty($audio->tags2)) {
-        foreach ($audio->tags2 as $tag=>$value) {
-            echo '    '.$tag.': ';
-            if ($tag == 'COMM') {
-                foreach ($value as $lang => $comment) {
-                    echo '['.$lang.'] '.$comment['short'].'; '.$comment['actual'].PHP_EOL;
+    /** @var string */
+    protected $songRowTempalte;
+
+    /** @var bool */
+    protected $compareWithId3;
+
+    protected $totalDuration = 0;
+    protected $totalParseTime = 0;
+    protected $totalId3ParseTime = 0;
+
+    /**
+     * @param array $fileNames
+     */
+    public function run(array $fileNames)
+    {
+        $this->adjustOutputSize();
+        $this->songRowTempalte = '%'.$this->widths['filename'].'s | %'.$this->widths['duration'].'s | %'.$this->widths['bitRate'].'s | %'.$this->widths['sampleRate'].'s | %'
+            .$this->widths['song'].'s | %'.$this->widths['artist'].'s | %'.$this->widths['track'].'s | %'.$this->widths['parseTime'].'s';
+        $this->compareWithId3 = class_exists('getID3');
+
+        echo sprintf($this->songRowTempalte, 'File name', 'dur.', 'bitrate', 'sample', 'song', 'artist', 'track',
+                'time').PHP_EOL;
+
+        foreach ($fileNames as $arg) {
+            if (is_dir($arg)) {
+                foreach (glob(rtrim($arg, DIRECTORY_SEPARATOR).DIRECTORY_SEPARATOR.'*.mp3') as $f) {
+                    if (is_file($f)) {
+                        $this->analyze($f);
+                        if ($this->compareWithId3) $this->analyzeId3($f);
+                    }
                 }
-            } else
-            echo $value.PHP_EOL;
+            } else if (is_file($arg)) {
+                $this->analyze($arg, true);
+                if ($this->compareWithId3) $this->analyzeId3($arg);
+            }
+        }
+
+
+        echo sprintf('%42s | %34s', 'Total duration: '.self::formatTime($this->totalDuration), 'Total parsing time: '.round($this->totalParseTime, 5)).PHP_EOL;
+        if ($this->compareWithId3)
+            echo sprintf('%79s', 'Total getId3 parsing time: '.round($this->totalId3ParseTime, 5)).PHP_EOL;
+    }
+
+    /**
+     * @param $time
+     *
+     * @return string
+     */
+    public static function formatTime($time) {
+        return floor($time / 60).':'.str_pad(floor($time % 60), 2, 0, STR_PAD_LEFT);
+    }
+
+    /**
+     * @param $string
+     * @param $maxLength
+     *
+     * @return string
+     */
+    public static function substrIfLonger($string, $maxLength) {
+        if (mb_strlen($string) > $maxLength) {
+            return mb_substr($string, 0, $maxLength-3).'...';
+        }
+        return $string;
+    }
+
+    /**
+     *
+     */
+    protected function adjustOutputSize()
+    {
+        $terminal_width = \wapmorgan\TerminalInfo\TerminalInfo::getWidth();
+
+        foreach ($this->widths as $element => $width) {
+            if ($width >= 1) {
+                continue;
+            }
+            $this->widths[$element] = ceil($width * $terminal_width);
         }
     }
-    $total_duration += $audio->duration;
-    $total_parse_time += $audio->_parsingTime;
-}
 
+    /**
+     * @param      $filename
+     * @param bool $id3v2
+     *
+     * @return null|void
+     */
+    protected function analyze($filename, $id3v2 = false) {
+        if (!is_readable($filename)) return;
+        try {
+            $audio = new Mp3Info($filename, true);
+        } catch (Exception $e) {
+            var_dump($filename.': '.$e->getMessage());
+            return null;
+        }
 
-function analyzeId3($filename, &$total_parse_time) {
-    static $ID3;
-    if ($ID3 === null) $ID3 = new getID3();
+        echo sprintf($this->songRowTempalte,
+                self::convertToNativeEncoding(self::substrIfLonger(basename($filename), $this->widths['filename'])),
+                self::formatTime($audio->duration),
+                $audio->isVbr ? 'vbr' : ($audio->bitRate / 1000).'kbps',
+                ($audio->sampleRate / 1000),
+                isset($audio->tags1['song']) ? self::substrIfLonger($audio->tags1['song'], 11) : null,
+                isset($audio->tags1['artist']) ? self::substrIfLonger($audio->tags1['artist'], 10) : null,
+                isset($audio->tags1['track']) ? self::substrIfLonger($audio->tags1['track'], 5) : null,
+                $audio->_parsingTime)
+            .PHP_EOL;
 
-    $t = microtime(true);
-    $info = $ID3->analyze($filename);
-    $parse_time = microtime(true) - $t;
-    echo sprintf('%15s | %4s | %7s | %0.1fkHz | %-11s | %-10s | %.5f |  %5d', substrIfLonger(basename($filename), 15), $info['playtime_string'], $info['audio']['bitrate_mode'] == 'vbr' ? 'vbr' : floor($info['audio']['bitrate'] / 1000).'kbps', ($info['audio']['sample_rate'] / 1000), isset($info['tags']['title']) ? substrIfLonger($info['tags']['title'], 11) : null, isset($info['tags']['artist']) ? substrIfLonger($info['tags']['artist'], 10) : null, null, $parse_time).PHP_EOL;
-    $total_parse_time += $parse_time;
+        if ($id3v2 && !empty($audio->tags2)) {
+            foreach ($audio->tags2 as $tag=>$value) {
+                echo '    '.$tag.': ';
+                if ($tag == 'COMM') {
+                    foreach ($value as $lang => $comment) {
+                        echo '['.$lang.'] '.$comment['short'].'; '.$comment['actual'].PHP_EOL;
+                    }
+                } else
+                    echo self::convertToNativeEncoding($value).PHP_EOL;
+            }
+        }
+        $this->totalDuration += $audio->duration;
+        $this->totalParseTime += $audio->_parsingTime;
+    }
+
+    /**
+     * @param $filename
+     */
+    protected function analyzeId3($filename) {
+        static $ID3;
+        if ($ID3 === null) $ID3 = new getID3();
+
+        $t = microtime(true);
+        $info = $ID3->analyze($filename);
+        $parse_time = microtime(true) - $t;
+        echo sprintf($this->songRowTempalte,
+                self::substrIfLonger(basename($filename), $this->widths['filename']),
+                $info['playtime_string'],
+                $info['audio']['bitrate_mode'] == 'vbr' ? 'vbr' : floor($info['audio']['bitrate'] / 1000).'kbps',
+                ($info['audio']['sample_rate'] / 1000),
+                isset($info['tags']['title']) ? self::substrIfLonger($info['tags']['title'], 11) : null,
+                isset($info['tags']['artist']) ? self::substrIfLonger($info['tags']['artist'], 10) :
+                    null,
+                null,
+                $parse_time)
+            .PHP_EOL;
+
+        $this->totalId3ParseTime += $parse_time;
+    }
+
+    protected static function convertToNativeEncoding($string)
+    {
+//        if (strncasecmp(PHP_OS, 'win', 3) === 0)
+//            return mb_convert_encoding($string, 'cp1251', 'utf-8');
+        return $string;
+    }
 }
 
 array_shift($argv);
-echo sprintf('%15s | %4s | %7s | %7s | %11s | %10s | %5s | %4s', 'File name', 'dur.', 'bitrate', 'sample', 'song', 'artist', 'track',
-    'time').PHP_EOL;
-$total_duration = $total_parse_time = $id3_parse_time = 0;
-foreach ($argv as $arg) {
-    if (is_dir($arg)) {
-        foreach (glob(rtrim($arg, DIRECTORY_SEPARATOR).DIRECTORY_SEPARATOR.'*.mp3') as $f) {
-            if (is_file($f)) {
-                analyze($f, $total_duration, $total_parse_time);
-                if ($compare) analyzeId3($f, $id3_parse_time);
-            }
-        }
-    } else if (is_file($arg)) {
-        analyze($arg, $total_duration, $total_parse_time, true);
-        if ($compare) analyzeId3($f, $id3_parse_time);
-    }
-}
-echo sprintf('%42s | %34s', 'Total duration: '.formatTime($total_duration), 'Total parsing time: '.round($total_parse_time, 5)).PHP_EOL;
-if ($compare) echo sprintf('%79s', 'Total getId3 parsing time: '.round($id3_parse_time, 5)).PHP_EOL;
+$runner = new Mp3InfoConsoleRunner();
+$runner->run($argv);
+

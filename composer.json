@@ -9,5 +9,11 @@
             "wapmorgan\\Mp3Info\\": "src/"
         }
 	},
+	"require": {
+		"ext-mbstring": "*"
+	},
+	"require-dev": {
+		"wapmorgan/terminal-info": "dev-master"
+	},
 	"bin": ["bin/mp3scan"]
 }
