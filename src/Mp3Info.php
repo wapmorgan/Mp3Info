@@ -265,7 +265,7 @@ class Mp3Info {
             } while (ftell($fp) < $limit_pos);
         }
 
-        if (empty($headerBytes) || $headerBytes[0] !== 0xFF || (($headerBytes[1] >> 5) & 0b111) != 0b111) throw new \Exception("At 0x".$pos."(".dechex($pos).") should be the first frame header!");
+        if ($headerBytes[0] !== 0xFF || (($headerBytes[1] >> 5) & 0b111) != 0b111) throw new \Exception("At 0x".$pos."(".dechex($pos).") should be the first frame header!");
 
         switch ($headerBytes[1] >> 3 & 0b11) {
             case 0b10: $this->codecVersion = self::MPEG_2; break;
@@ -316,8 +316,8 @@ class Mp3Info {
 
     private function readBytes($fp, $n) {
         $raw = fread($fp, $n);
+        if (strlen($raw) !== $n) throw new \Exception('Unexpected end of file!');
         $bytes = array();
-        if (empty($raw)) return $bytes;
         for($i = 0; $i < $n; $i++) $bytes[$i] = ord($raw[$i]);
         return $bytes;
     }
