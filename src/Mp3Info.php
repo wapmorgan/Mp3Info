@@ -316,6 +316,7 @@ class Mp3Info {
 
     private function readBytes($fp, $n) {
         $raw = fread($fp, $n);
+        if (strlen($raw) !== $n) throw new \Exception('Unexpected end of file!');
         $bytes = array();
         for($i = 0; $i < $n; $i++) $bytes[$i] = ord($raw[$i]);
         return $bytes;
