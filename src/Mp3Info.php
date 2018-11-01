@@ -649,6 +649,6 @@ class Mp3Info {
         if ($data['encoding'] == 0x00) # ISO-8859-1
             return mb_convert_encoding($data['information'], 'utf-8', 'iso-8859-1');
         else # utf-16
-            return mb_convert_encoding($data['information'], 'utf-8', 'utf-16');
+            return mb_convert_encoding($data['information']."\00", 'utf-8', 'utf-16');
     }
 }
