@@ -27,21 +27,27 @@ class Mp3Info {
     const VBR_SYNC = 'Xing';
     const CBR_SYNC = 'Info';
 
+    /**
+     * Magic constants
+     */
     const FRAME_SYNC = 0xffe0;
+    const LAYER_1_FRAME_SIZE = 384;
+    const LAYERS_23_FRAME_SIZE = 1152;
 
     const META = 1;
+
     const TAGS = 2;
-
     const MPEG_1 = 1;
-    const MPEG_2 = 2;
 
+    const MPEG_2 = 2;
     const LAYER_1 = 1;
     const LAYER_2 = 2;
-    const LAYER_3 = 3;
 
+    const LAYER_3 = 3;
     const STEREO = 'stereo';
     const JOINT_STEREO = 'joint_stereo';
     const DUAL_MONO = 'dual_mono';
+
     const MONO = 'mono';
 
     /**
@@ -52,22 +58,22 @@ class Mp3Info {
      * @var array
      */
     static private $_bitRateTable;
+
     /**
      * @var array
      */
     static private $_sampleRateTable;
-
     /**
      * MPEG codec version (1 or 2)
      * @var int
      */
     public $codecVersion;
+
     /**
      * Audio layer version (1 or 2 or 3)
      * @var int
      */
     public $layerVersion;
-
     /**
      * Audio size in bytes. Note that this value is NOT equals file size.
      * @var int
@@ -147,6 +153,7 @@ class Mp3Info {
      * @var array
      */
     public $id3v2TagsFlags = array();
+
     /**
      * Contains time spent to read&extract audio information.
      * @var float
@@ -174,7 +181,7 @@ class Mp3Info {
             self::$_sampleRateTable = require dirname(__FILE__).'/../data/sampleRateTable.php';
 
         if (!file_exists($filename))
-            throw new \Exception("File ".$filename." is not present!");
+            throw new \Exception('File '.$filename.' is not present!');
         $mode = $parseTags ? self::META | self::TAGS : self::META;
         $this->audioSize = $this->parseAudio($this->_fileName = $filename, $this->_fileSize = filesize($filename), $mode);
     }
@@ -223,9 +230,15 @@ class Mp3Info {
         // audio meta
         if ($mode & self::META) {
             if (isset($id3v2Size)) fseek($fp, $id3v2Size);
+            /**
+             * First frame can lie. Need to fix in future.
+             * @link https://github.com/wapmorgan/Mp3Info/issues/13#issuecomment-447470813
+             */
             $framesCount = $this->readFirstFrame($fp);
-            if (!is_null($framesCount)) $this->framesCount = $framesCount;
-            else $this->framesCount = ceil($audioSize / $this->__cbrFrameSize);
+
+            $this->framesCount = $framesCount !== null
+                ? $framesCount
+                : ceil($audioSize / $this->__cbrFrameSize);
 
             // recalculate average bit rate in vbr case
             if ($this->isVbr && !is_null($framesCount)) {
@@ -233,7 +246,11 @@ class Mp3Info {
                 $this->bitRate = $avgFrameSize * $this->sampleRate / (1000 * $this->layerVersion == 3 ? 12 : 144);
             }
 
-            $this->duration = ($this->framesCount - 1) * ($this->layerVersion == 1 ? 384 : 1152) / $this->sampleRate;
+            // The faster way to detect audio duration:
+            // Calculate total number of audio samples (framesCount * sampleInFrameCount) / samplesInSecondCount
+            $this->duration = ($this->framesCount - 1)
+                * ($this->layerVersion == 1 ? self::LAYER_1_FRAME_SIZE : self::LAYERS_23_FRAME_SIZE)
+                / $this->sampleRate;
         }
         fclose($fp);
 
@@ -314,6 +331,13 @@ class Mp3Info {
         return isset($framesCount) ? $framesCount : null;
     }
 
+    /**
+     * @param $fp
+     * @param $n
+     *
+     * @return array
+     * @throws \Exception
+     */
     private function readBytes($fp, $n) {
         $raw = fread($fp, $n);
         if (strlen($raw) !== $n) throw new \Exception('Unexpected end of file!');
