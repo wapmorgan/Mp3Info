@@ -49,8 +49,9 @@ class Mp3InfoConsoleRunner {
 
     /**
      * @param array $fileNames
+     * @param bool  $verbose
      */
-    public function run(array $fileNames)
+    public function run(array $fileNames, $verbose = false)
     {
         $this->adjustOutputSize();
         $this->songRowTempalte = '%'.$this->widths['filename'].'s | %'.$this->widths['duration'].'s | %'.$this->widths['bitRate'].'s | %'.$this->widths['sampleRate'].'s | %'
@@ -64,12 +65,12 @@ class Mp3InfoConsoleRunner {
             if (is_dir($arg)) {
                 foreach (glob(rtrim($arg, DIRECTORY_SEPARATOR).DIRECTORY_SEPARATOR.'*.mp3') as $f) {
                     if (is_file($f)) {
-                        $this->analyze($f);
+                        $this->analyze($f, false, $verbose);
                         if ($this->compareWithId3) $this->analyzeId3($f);
                     }
                 }
             } else if (is_file($arg)) {
-                $this->analyze($arg, true);
+                $this->analyze($arg, true, $verbose);
                 if ($this->compareWithId3) $this->analyzeId3($arg);
             }
         }
@@ -121,9 +122,11 @@ class Mp3InfoConsoleRunner {
      * @param      $filename
      * @param bool $id3v2
      *
+     * @param bool $verbose
+     *
      * @return null|void
      */
-    protected function analyze($filename, $id3v2 = false) {
+    protected function analyze($filename, $id3v2 = false, $verbose = false) {
         if (!is_readable($filename)) return;
         try {
             $audio = new Mp3Info($filename, true);
@@ -154,6 +157,11 @@ class Mp3InfoConsoleRunner {
                     echo self::convertToNativeEncoding($value).PHP_EOL;
             }
         }
+
+        if ($verbose) {
+            print_r(get_object_vars($audio));
+        }
+
         $this->totalDuration += $audio->duration;
         $this->totalParseTime += $audio->_parsingTime;
     }
@@ -192,6 +200,12 @@ class Mp3InfoConsoleRunner {
 }
 
 array_shift($argv);
+$verbose = false;
+if (in_array('-v', $argv, true)) {
+    $verbose = true;
+    unset($argv[array_search('-v', $argv, true)]);
+}
+
 $runner = new Mp3InfoConsoleRunner();
-$runner->run($argv);
+$runner->run($argv, $verbose);
 

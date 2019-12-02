@@ -62,6 +62,11 @@ class Mp3Info {
     static private $_sampleRateTable;
 
     /**
+     * @var int Limit in bytes for seeking a mpeg header in file
+     */
+    public static $headerSeekLimit = 2048;
+
+    /**
      * MPEG codec version (1 or 2)
      * @var int
      */
@@ -144,6 +149,11 @@ class Mp3Info {
     public $tags2 = [];
 
     /**
+     * @var int|null Size of id3-block
+     */
+    public $id3Size;
+
+    /**
      * Major version of id3v2 tag (if id3v2  present) (2 or 3 or 4)
      * @var int
      */
@@ -153,11 +163,13 @@ class Mp3Info {
      * @var int
      */
     public $id3v2MinorVersion;
+
     /**
      * List of id3v2 header flags (if id3v2  present)
      * @var array
      */
     public $id3v2Flags = [];
+
     /**
      * List of id3v2 tags flags (if id3v2 present)
      * @var array
@@ -192,6 +204,7 @@ class Mp3Info {
 
         if (!file_exists($filename))
             throw new \Exception('File '.$filename.' is not present!');
+
         $mode = $parseTags ? self::META | self::TAGS : self::META;
         $this->audioSize = $this->parseAudio($this->_fileName = $filename, $this->_fileSize = filesize($filename), $mode);
     }
@@ -218,7 +231,7 @@ class Mp3Info {
 
         // parse tags
         if (fread($fp, 3) == self::TAG2_SYNC) {
-            if ($mode & self::TAGS) $audioSize -= ($id3v2Size = $this->readId3v2Body($fp));
+            if ($mode & self::TAGS) $audioSize -= ($this->id3Size = $this->readId3v2Body($fp));
             else {
                 fseek($fp, 2, SEEK_CUR); // 2 bytes of tag version
                 fseek($fp, 1, SEEK_CUR); // 1 byte of tag flags
@@ -227,9 +240,10 @@ class Mp3Info {
                     $value = substr(str_pad(base_convert($value, 10, 2), 8, 0, STR_PAD_LEFT), 1);
                 });
                 $size = bindec(implode(null, $sizeBytes)) + 10;
-                $audioSize -= ($id3v2Size = $size);
+                $audioSize -= ($this->id3Size = $size);
             }
         }
+
         fseek($fp, $fileSize - 128);
         if (fread($fp, 3) == self::TAG1_SYNC) {
             if ($mode & self::TAGS) $audioSize -= $this->readId3v1Body($fp);
@@ -239,13 +253,12 @@ class Mp3Info {
         fseek($fp, 0);
         // audio meta
         if ($mode & self::META) {
-            if (isset($id3v2Size)) fseek($fp, $id3v2Size);
+            if ($this->id3Size !== null) fseek($fp, $this->id3Size);
             /**
              * First frame can lie. Need to fix in future.
              * @link https://github.com/wapmorgan/Mp3Info/issues/13#issuecomment-447470813
              */
             $framesCount = $this->readMpegFrame($fp);
-
             $this->framesCount = $framesCount !== null
                 ? $framesCount
                 : ceil($audioSize / $this->__cbrFrameSize);
@@ -275,41 +288,37 @@ class Mp3Info {
      * @throws \Exception
      */
     private function readMpegFrame($fp) {
-        $pos = ftell($fp);
-        $headerBytes = $this->readBytes($fp, 4);
+        $header_seek_pos = ftell($fp) + self::$headerSeekLimit;
+        do {
+            $pos = ftell($fp);
+            $first_header_byte = $this->readBytes($fp, 4);
+            if ($first_header_byte[0] === 0xFF) {
+                fseek($fp, $pos);
+                $header_bytes = $this->readBytes($fp, 4);
+                break;
+            }
+            fseek($fp, 1, SEEK_CUR);
+        } while (ftell($fp) <= $header_seek_pos);
 
-        // if bytes are null, search for something else 2048 bytes forward
-        if ($headerBytes[0] !== 0xFF) {
-            $limit_pos = $pos + 2048;
-            do {
-                $pos = ftell($fp);
-                $bytes = $this->readBytes($fp, 1);
-                if ($bytes[0] === 0xFF) {
-                    fseek($fp, $pos);
-                    $headerBytes = $this->readBytes($fp, 4);
-                    break;
-                }
-            } while (ftell($fp) < $limit_pos);
-        }
+        if ($header_bytes[0] !== 0xFF || (($header_bytes[1] >> 5) & 0b111) != 0b111) throw new \Exception("At ".$pos."(0x".dechex($pos).") should be a frame header!");
 
-        if ($headerBytes[0] !== 0xFF || (($headerBytes[1] >> 5) & 0b111) != 0b111) throw new \Exception("At 0x".$pos."(".dechex($pos).") should be a frame header!");
-
-        switch ($headerBytes[1] >> 3 & 0b11) {
+        switch ($header_bytes[1] >> 3 & 0b11) {
             case 0b00: $this->codecVersion = self::MPEG_25; break;
             case 0b01: $this->codecVersion = self::CODEC_UNDEFINED; break;
             case 0b10: $this->codecVersion = self::MPEG_2; break;
             case 0b11: $this->codecVersion = self::MPEG_1; break;
         }
 
-        switch ($headerBytes[1] >> 1 & 0b11) {
+        switch ($header_bytes[1] >> 1 & 0b11) {
             case 0b01: $this->layerVersion = self::LAYER_3; break;
             case 0b10: $this->layerVersion = self::LAYER_2; break;
             case 0b11: $this->layerVersion = self::LAYER_1; break;
         }
-        $this->bitRate = self::$_bitRateTable[$this->codecVersion][$this->layerVersion][$headerBytes[2] >> 4];
-        $this->sampleRate = self::$_sampleRateTable[$this->codecVersion][bindec($headerBytes[2] >> 2 & 0b11)];
 
-        switch ($headerBytes[3] >> 6) {
+        $this->bitRate = self::$_bitRateTable[$this->codecVersion][$this->layerVersion][$header_bytes[2] >> 4];
+        $this->sampleRate = self::$_sampleRateTable[$this->codecVersion][($header_bytes[2] >> 2) & 0b11];
+
+        switch ($header_bytes[3] >> 6) {
             case 0b00: $this->channel = self::STEREO; break;
             case 0b01: $this->channel = self::JOINT_STEREO; break;
             case 0b10: $this->channel = self::DUAL_MONO; break;
@@ -335,10 +344,10 @@ class Mp3Info {
         }
 
         // go to the end of frame
-        if ($this->layerVersion == 1) {
-            $this->__cbrFrameSize = floor((12 * $this->bitRate / $this->sampleRate + ($headerBytes[2] >> 1 & 0b1)) * 4);
+        if ($this->layerVersion == self::LAYER_1) {
+            $this->__cbrFrameSize = floor((12 * $this->bitRate / $this->sampleRate + ($header_bytes[2] >> 1 & 0b1)) * 4);
         } else {
-            $this->__cbrFrameSize = floor(144 * $this->bitRate / $this->sampleRate + ($headerBytes[2] >> 1 & 0b1));
+            $this->__cbrFrameSize = floor(144 * $this->bitRate / $this->sampleRate + ($header_bytes[2] >> 1 & 0b1));
         }
 
         fseek($fp, $pos + $this->__cbrFrameSize);
