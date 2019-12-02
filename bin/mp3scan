@@ -131,7 +131,7 @@ class Mp3InfoConsoleRunner {
         try {
             $audio = new Mp3Info($filename, true);
         } catch (Exception $e) {
-            var_dump($filename.': '.$e->getMessage());
+            var_dump("Exception when parsing ".$filename.': '.$e->getMessage());
             return null;
         }
 

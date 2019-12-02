@@ -19,6 +19,7 @@ use Exception;
  * Used sources:
  * * {@link http://mpgedit.org/mpgedit/mpeg_format/mpeghdr.htm mpeg header description}
  * * {@link http://id3.org/Developer%20Information id3v2 tag specifications}. Specially: {@link http://id3.org/id3v2.3.0 id3v2.3.0}, {@link http://id3.org/id3v2-00 id3v2.2.0}, {@link http://id3.org/id3v2.4.0-changes id3v2.4.0}
+ * * {@link https://multimedia.cx/mp3extensions.txt Descripion of VBR header "Xing"}
  * * {@link http://gabriel.mp3-tech.org/mp3infotag.html Xing, Info and Lame tags specifications}
  */
 class Mp3Info {
@@ -119,6 +120,12 @@ class Mp3Info {
     public $isVbr = false;
 
     /**
+     * Contains VBR properties
+     * @var array
+     */
+    public $vbrProperties = [];
+
+    /**
      * Channel mode (stereo or dual_mono or joint_stereo or mono)
      * @var string
      */
@@ -129,12 +136,6 @@ class Mp3Info {
      * @var int
      */
     public $framesCount = 0;
-
-    /**
-     * Contains extra flags
-     * @var array
-     */
-    public $extraFlags = [];
 
     /**
      * Audio tags ver. 1 (aka id3v1)
@@ -187,6 +188,12 @@ class Mp3Info {
      * @var int
      */
     private $__cbrFrameSize;
+
+    /**
+     * Frame size for Variable Bit Rate
+     * @var int
+     */
+    private $__vbrFrameSize;
 
     /**
      * $mode is self::META, self::TAGS or their combination.
@@ -259,6 +266,7 @@ class Mp3Info {
              * @link https://github.com/wapmorgan/Mp3Info/issues/13#issuecomment-447470813
              */
             $framesCount = $this->readMpegFrame($fp);
+
             $this->framesCount = $framesCount !== null
                 ? $framesCount
                 : ceil($audioSize / $this->__cbrFrameSize);
@@ -270,10 +278,13 @@ class Mp3Info {
             }
 
             // The faster way to detect audio duration:
+            $samples_in_second = $this->layerVersion == 1 ? self::LAYER_1_FRAME_SIZE : self::LAYERS_23_FRAME_SIZE;
+            // for VBR: adjust samples in second according to VBR quality
+            if ($this->isVbr && isset($this->vbrProperties['quality'])) {
+                $samples_in_second = floor($samples_in_second * $this->vbrProperties['quality'] / 100);
+            }
             // Calculate total number of audio samples (framesCount * sampleInFrameCount) / samplesInSecondCount
-            $this->duration = ($this->framesCount - 1)
-                * ($this->layerVersion == 1 ? self::LAYER_1_FRAME_SIZE : self::LAYERS_23_FRAME_SIZE)
-                / $this->sampleRate;
+            $this->duration = ($this->framesCount - 1) * $samples_in_second / $this->sampleRate;
         }
         fclose($fp);
 
@@ -284,7 +295,7 @@ class Mp3Info {
     /**
      * Read first frame information.
      * @param resource $fp
-     * @return int Number of frames (if present if first frame)
+     * @return int Number of frames (if present if first frame of VBR-file)
      * @throws \Exception
      */
     private function readMpegFrame($fp) {
@@ -332,15 +343,28 @@ class Mp3Info {
             case '2mono': $offset = 13; break;
         }
 
+        // check for VBR
         fseek($fp, $pos + $offset);
         if (fread($fp, 4) == self::VBR_SYNC) {
             $this->isVbr = true;
             $flagsBytes = $this->readBytes($fp, 4);
-            $this->extraFlags['frames'] = (bool)($flagsBytes[3] & 1);
-            $this->extraFlags['bytes'] = (bool)($flagsBytes[3] & 2);
-            $this->extraFlags['TOC'] = (bool)($flagsBytes[3] & 4);
-            $this->extraFlags['VBR'] = (bool)($flagsBytes[3] & 8);
-            if ($this->extraFlags['frames']) $framesCount = implode(null, unpack('N', fread($fp, 4)));
+
+            // VBR frames count presence
+            if (($flagsBytes[3] & 2)) {
+                $this->vbrProperties['frames'] = implode(null, unpack('N', fread($fp, 4)));
+            }
+            // VBR stream size presence
+            if ($flagsBytes[3] & 4) {
+                $this->vbrProperties['bytes'] = implode(null, unpack('N', fread($fp, 4)));
+            }
+            // VBR TOC presence
+            if ($flagsBytes[3] & 1) {
+                fseek($fp, 100, SEEK_CUR);
+            }
+            // VBR quality
+            if ($flagsBytes[3] & 8) {
+                $this->vbrProperties['quality'] = implode(null, unpack('N', fread($fp, 4)));
+            }
         }
 
         // go to the end of frame
@@ -352,7 +376,7 @@ class Mp3Info {
 
         fseek($fp, $pos + $this->__cbrFrameSize);
 
-        return isset($framesCount) ? $framesCount : null;
+        return isset($this->vbrProperties['frames']) ? $this->vbrProperties['frames'] : null;
     }
 
     /**
