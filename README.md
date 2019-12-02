@@ -1,7 +1,6 @@
 # Mp3Info
 The fastest PHP library to get mp3 tags&meta.
 
-[![Composer package](http://composer.network/badge/wapmorgan/mp3info)](https://packagist.org/packages/wapmorgan/mp3info)
 [![Latest Stable Version](https://poser.pugx.org/wapmorgan/mp3info/v/stable)](https://packagist.org/packages/wapmorgan/mp3info)
 [![Total Downloads](https://poser.pugx.org/wapmorgan/mp3info/downloads)](https://packagist.org/packages/wapmorgan/mp3info)
 [![Latest Unstable Version](https://poser.pugx.org/wapmorgan/mp3info/v/unstable)](https://packagist.org/packages/wapmorgan/mp3info)
@@ -9,15 +8,15 @@ The fastest PHP library to get mp3 tags&meta.
 
 This class extracts information from mpeg/mp3 audio:
 
-| Audio        | id3v1 Tags | id3v2 Tags |
-|--------------|------------|------------|
-| duration     | song       | TIT2       |
-| bitRate      | artist     | TPE1       |
-| sampleRate   | album      | TALB       |
-| channel      | year       | TYER       |
-| framesCount  | comment    | COMM       |
-| codecVersion | track      | TRCK       |
-| layerVersion | genre      | TCON       |
+| Audio        | id3v1 & id3v2 Tags |
+|--------------|--------------------|
+| duration     | song (TIT2)        |
+| bitRate      | artist (TPE1)      |
+| sampleRate   | album (TALB)       |
+| channel      | year (TYER)        |
+| framesCount  | comment (COMM)     |
+| codecVersion | track (TRCK)       |
+| layerVersion | genre (TCON)       |
 
 1. Usage
 2. Performance
@@ -31,13 +30,14 @@ This class extracts information from mpeg/mp3 audio:
 # Usage
 After creating an instance of `Mp3Info` with passing filename as the first argument to the constructor, you can retrieve data from object properties (listed below).
 
-If you need parse tags, you should set 2nd argument this way:
 
 ```php
 use wapmorgan\Mp3Info\Mp3Info;
-$audio = new Mp3Info($fileName, true);
-// or omit 2nd argument to increase parsing speed
-$audio = new Mp3Info($fileName);
+// To get basic audio information
+$audio = new Mp3Info('./audio.mp3');
+
+// If you need parse tags, you should set 2nd argument this way:
+$audio = new Mp3Info('./audio.mp3', true);
 ```
 
 And after that access object properties to get audio information:
@@ -59,7 +59,6 @@ echo 'Song '.$audio->tags1['song'].' from '.$audio->tags1['artist'].PHP_EOL;
 * Typically it parses one mp3-file with size around 6-7 mb in less than 0.001 sec.
 * List of 112 files with constant & variable bitRate with total duration 5:22:28 are parsed in 1.76 sec. *getId3* library against exactly the same mp3 list works for 8x-10x slower - 9.9 sec.
 * If you want, there's a very easy way to compare. Just install `nass600/get-id3` package and run console scanner against any folder with audios. It will print time that Mp3Info spent and that getId3.
-
 
 # Console scanner
 To test Mp3Info you can use built-in script that scans dirs and analyzes all mp3-files inside them. To launch script against current folder:

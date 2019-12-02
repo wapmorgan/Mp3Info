@@ -35,25 +35,22 @@ class Mp3Info {
     const LAYERS_23_FRAME_SIZE = 1152;
 
     const META = 1;
-
     const TAGS = 2;
-    const MPEG_1 = 1;
 
+    const MPEG_1 = 1;
     const MPEG_2 = 2;
+    const MPEG_25 = 3;
+    const CODEC_UNDEFINED = 4;
+
     const LAYER_1 = 1;
     const LAYER_2 = 2;
-
     const LAYER_3 = 3;
+
     const STEREO = 'stereo';
     const JOINT_STEREO = 'joint_stereo';
     const DUAL_MONO = 'dual_mono';
-
     const MONO = 'mono';
 
-    /**
-     * Boolean trigger to enable / disable trace output
-     */
-    static public $traceOutput = false;
     /**
      * @var array
      */
@@ -63,6 +60,7 @@ class Mp3Info {
      * @var array
      */
     static private $_sampleRateTable;
+
     /**
      * MPEG codec version (1 or 2)
      * @var int
@@ -79,60 +77,72 @@ class Mp3Info {
      * @var int
      */
     public $audioSize;
+
     /**
      * Contains audio file name
      * @var string
      */
     public $_fileName;
+
     /**
      * Contains file size
      * @var int
      */
     public $_fileSize;
+
     /**
      * Audio duration in seconds.microseconds (e.g. 3603.0171428571)
      * @var float
      */
     public $duration;
+
     /**
      * Audio bit rate in bps (e.g. 128000)
      */
     public $bitRate;
+
     /**
      * Audio sample rate in Hz (e.g. 44100)
      * @var int
      */
     public $sampleRate;
+
     /**
      * Contains true if audio has variable bit rate
      * @var boolean
      */
     public $isVbr = false;
+
     /**
      * Channel mode (stereo or dual_mono or joint_stereo or mono)
      * @var string
      */
     public $channel;
+
     /**
      * Number of audio frames in file
      * @var int
      */
     public $framesCount = 0;
+
     /**
      * Contains extra flags
      * @var array
      */
-    public $extraFlags = array();
+    public $extraFlags = [];
+
     /**
      * Audio tags ver. 1 (aka id3v1)
      * @var array
      */
-    public $tags1 = array();
+    public $tags1 = [];
+
     /**
      * Audio tags ver. 2 (aka id3v2)
      * @var array
      */
-    public $tags2 = array();
+    public $tags2 = [];
+
     /**
      * Major version of id3v2 tag (if id3v2  present) (2 or 3 or 4)
      * @var int
@@ -147,12 +157,12 @@ class Mp3Info {
      * List of id3v2 header flags (if id3v2  present)
      * @var array
      */
-    public $id3v2Flags = array();
+    public $id3v2Flags = [];
     /**
      * List of id3v2 tags flags (if id3v2 present)
      * @var array
      */
-    public $id3v2TagsFlags = array();
+    public $id3v2TagsFlags = [];
 
     /**
      * Contains time spent to read&extract audio information.
@@ -234,7 +244,7 @@ class Mp3Info {
              * First frame can lie. Need to fix in future.
              * @link https://github.com/wapmorgan/Mp3Info/issues/13#issuecomment-447470813
              */
-            $framesCount = $this->readFirstFrame($fp);
+            $framesCount = $this->readMpegFrame($fp);
 
             $this->framesCount = $framesCount !== null
                 ? $framesCount
@@ -264,7 +274,7 @@ class Mp3Info {
      * @return int Number of frames (if present if first frame)
      * @throws \Exception
      */
-    private function readFirstFrame($fp) {
+    private function readMpegFrame($fp) {
         $pos = ftell($fp);
         $headerBytes = $this->readBytes($fp, 4);
 
@@ -282,9 +292,11 @@ class Mp3Info {
             } while (ftell($fp) < $limit_pos);
         }
 
-        if ($headerBytes[0] !== 0xFF || (($headerBytes[1] >> 5) & 0b111) != 0b111) throw new \Exception("At 0x".$pos."(".dechex($pos).") should be the first frame header!");
+        if ($headerBytes[0] !== 0xFF || (($headerBytes[1] >> 5) & 0b111) != 0b111) throw new \Exception("At 0x".$pos."(".dechex($pos).") should be a frame header!");
 
         switch ($headerBytes[1] >> 3 & 0b11) {
+            case 0b00: $this->codecVersion = self::MPEG_25; break;
+            case 0b01: $this->codecVersion = self::CODEC_UNDEFINED; break;
             case 0b10: $this->codecVersion = self::MPEG_2; break;
             case 0b11: $this->codecVersion = self::MPEG_1; break;
         }
@@ -310,6 +322,7 @@ class Mp3Info {
             case '2stereo': $offset = 21; break;
             case '2mono': $offset = 13; break;
         }
+
         fseek($fp, $pos + $offset);
         if (fread($fp, 4) == self::VBR_SYNC) {
             $this->isVbr = true;
@@ -320,12 +333,14 @@ class Mp3Info {
             $this->extraFlags['VBR'] = (bool)($flagsBytes[3] & 8);
             if ($this->extraFlags['frames']) $framesCount = implode(null, unpack('N', fread($fp, 4)));
         }
+
         // go to the end of frame
         if ($this->layerVersion == 1) {
             $this->__cbrFrameSize = floor((12 * $this->bitRate / $this->sampleRate + ($headerBytes[2] >> 1 & 0b1)) * 4);
         } else {
             $this->__cbrFrameSize = floor(144 * $this->bitRate / $this->sampleRate + ($headerBytes[2] >> 1 & 0b1));
         }
+
         fseek($fp, $pos + $this->__cbrFrameSize);
 
         return isset($framesCount) ? $framesCount : null;
@@ -653,7 +668,7 @@ class Mp3Info {
      * @return boolean True if file is looks correct, False otherwise.
      * @throws \Exception
      */
-    static public function isValidAudio($filename) {
+    public static function isValidAudio($filename) {
         if (!file_exists($filename))
             throw new Exception('File '.$filename.' is not present!');
         $raw = file_get_contents($filename, false, null, 0, 3);
@@ -664,7 +679,7 @@ class Mp3Info {
      * @param $frameSize
      * @param $raw
      *
-     * @return array
+     * @return string
      */
     private function handleTextFrame($frameSize, $raw)
     {
