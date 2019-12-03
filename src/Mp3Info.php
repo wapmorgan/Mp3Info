@@ -63,12 +63,21 @@ class Mp3Info {
     static private $_sampleRateTable;
 
     /**
+     * @var array
+     */
+    static private $_vbrOffsets = [
+        self::MPEG_1 => [21, 36],
+        self::MPEG_2 => [13, 21],
+        self::MPEG_25 => [13, 21],
+    ];
+
+    /**
      * @var int Limit in bytes for seeking a mpeg header in file
      */
     public static $headerSeekLimit = 2048;
 
     /**
-     * MPEG codec version (1 or 2)
+     * MPEG codec version (1 or 2 or 2.5 or undefined)
      * @var int
      */
     public $codecVersion;
@@ -344,15 +353,10 @@ class Mp3Info {
             case 0b11: $this->channel = self::MONO; break;
         }
 
-        switch ($this->codecVersion.($this->channel == self::MONO ? 'mono' : 'stereo')) {
-            case '1stereo': $offset = 36; break;
-            case '1mono': $offset = 21; break;
-            case '2stereo': $offset = 21; break;
-            case '2mono': $offset = 13; break;
-        }
+        $vbr_offset = self::$_vbrOffsets[$this->codecVersion][$this->channel == self::MONO ? 0 : 1];
 
         // check for VBR
-        fseek($fp, $pos + $offset);
+        fseek($fp, $pos + $vbr_offset);
         if (fread($fp, 4) == self::VBR_SYNC) {
             $this->isVbr = true;
             $flagsBytes = $this->readBytes($fp, 4);
