@@ -8,23 +8,22 @@ The fastest PHP library to get mp3 tags&meta.
 
 This class extracts information from mpeg/mp3 audio:
 
-| Audio        | id3v1 & id3v2 Tags |
-|--------------|--------------------|
-| duration     | song (TIT2)        |
-| bitRate      | artist (TPE1)      |
-| sampleRate   | album (TALB)       |
-| channel      | year (TYER)        |
-| framesCount  | comment (COMM)     |
-| codecVersion | track (TRCK)       |
-| layerVersion | genre (TCON)       |
+| Audio characteristics | Audio tags (id3v1 & id3v2  |
+|-----------------------|----------------------------|
+| Duration              | song (TIT2)                |
+| Bit Rate              | artist (TPE1)              |
+| Sample Rate           | album (TALB)               |
+| Channels mode         | year (TYER)                |
+| Frames count          | comment (COMM)             |
+| Codec version         | track (TRCK)               |
+| Layer version         | genre (TCON)               |
 
 1. Usage
 2. Performance
 3. Console scanner
 4. API
 	- Audio information
-	- Object members
-	- Static methods
+	- Class methods
 4. Technical information
 
 # Usage
@@ -48,10 +47,18 @@ echo 'Audio bitrate: '.($audio->bitRate / 1000).' kb/s'.PHP_EOL;
 // and so on ...
 ```
 
-To access id3v1 tags use `$tags1` property:
+To access id3v1 tags use `$tags1` property.
+To access id3v2 tags use `$tags2` property.
+Also, you can use combined list of tags `$tags`, where id3v2 and id3v1 tags united with id3v1 keys.
 
 ```php
+// simple id3v1 tags
 echo 'Song '.$audio->tags1['song'].' from '.$audio->tags1['artist'].PHP_EOL;
+// specific id3v2 tags
+echo 'Song '.$audio->tags2['TIT2'].' from '.$audio->tags2['TPE1'].PHP_EOL;
+
+// combined tags (simplies way to get as more information as possible)
+echo 'Song '.$audio->tags['song'].' from '.$audio->tags['artist'].PHP_EOL;
 ```
 
 # Performance
@@ -71,47 +78,36 @@ php bin/scan ./
 
 ### Audio information
 
-| Property        | Description                                                        | Values                                                      |
-|-----------------|--------------------------------------------------------------------|-------------------------------------------------------------|
-| `$codecVersion` | MPEG codec version                                                 | 1 or 2                                                      |
-| `$layerVersion` | Audio layer version                                                | 1 or 2 or 3                                                 |
-| `$audioSize`    | Audio size in bytes. Note that this value is NOT equals file size. | *int*                                                       |
-| `$duration`     | Audio duration in seconds.microseconds                             | like 3603.0171428571 (means 1 hour and 3 sec)               |
-| `$bitRate`      | Audio bit rate in bps                                              | like 128000 (means 128kb/s)                                 |
-| `$sampleRate`   | Audio sample rate in Hz                                            | like 44100 (means 44.1KHz)                                  |
-| `$isVbr`        | Contains true if audio has variable bit rate                       | *boolean*                                                   |
-| `$channel`      | Channel mode                                                       | `'stereo'` or `'dual_mono'` or `'joint_stereo'` or `'mono'` |
+| Property        | Description                                                         | Values                                                      |
+|-----------------|---------------------------------------------------------------------|-------------------------------------------------------------|
+| `$codecVersion` | MPEG codec version                                                  | 1 or 2                                                      |
+| `$layerVersion` | Audio layer version                                                 | 1 or 2 or 3                                                 |
+| `$audioSize`    | Audio size in bytes. Note that this value is NOT equals file size.  | *int*                                                       |
+| `$duration`     | Audio duration in seconds.microseconds                              | like 3603.0171428571 (means 1 hour and 3 sec)               |
+| `$bitRate`      | Audio bit rate in bps                                               | like 128000 (means 128kb/s)                                 |
+| `$sampleRate`   | Audio sample rate in Hz                                             | like 44100 (means 44.1KHz)                                  |
+| `$isVbr`        | Contains true if audio has variable bit rate                        | *boolean*                                                   |
+| `$channel`      | Channel mode                                                        | `'stereo'` or `'dual_mono'` or `'joint_stereo'` or `'mono'` |
+| `$tags1`        | Audio tags ver. 1 (aka id3v1).                                      | ["song" => "Song name", "year" => 2009]                     |
+| `$tags2`        | Audio tags ver. 2 (aka id3v2), only text ones.                      | ["TIT2" => "Long song name", ...]                           |
+| `$tags`         | Combined audio tags (from id3v1 & id3v2). Keys as in tags1.         | ["song" => "Long song name", "year" => 2009, ...]           |
+| `$_parsingTime` | Contains time spent to read&extract audio information in *sec.msec* |                                                             |
 
-### Object members
-- `float $_parsingTime`
-
-	Contains time spent to read&extract audio information in *sec.msec*.
-
-- `array $tags1`
-
-	Audio tags ver. 1 (aka id3v1).
-
-- `array $tags2`
-
-	Audio tags ver. 2 (aka id3v2).
-
+### Class methods
 - `public function __construct($filename, $parseTags = false)`
-
-	Creates new instance of object and initiate parsing. If second argument is *true*, audio tags will be parsed.
-
-### Static methods
+	Creates new instance of object and initiate parsing. If second argument is *true*, audio tags also will be parsed.
 
 - `static public function isValidAudio($filename)`
-
 	Checks if file `$filename` looks like an mp3-file. Returns **true** if file similar to mp3, otherwise false.
 
 ## Technical information
 Supporting features:
 * id3v1
 * id3v2.3.0
-* Variable Bit Rate (VBR)
+* CBR, Variable Bit Rate (VBR)
 
 Used sources:
 * [mpeg header description](http://mpgedit.org/mpgedit/mpeg_format/mpeghdr.htm)
-* [id3v2 tag specifications](http://id3.org/Developer%20Information). Сoncretely: [id3v2.3.0](http://id3.org/id3v2.3.0), [id3v2.2.0](http://id3.org/id3v2-00), [id3v2.4.0](http://id3.org/id3v2.4.0-changes)
+* [id3v2 tag specifications](http://id3.org/Developer%20Information). Concretely: [id3v2.3.0](http://id3.org/id3v2.3.0), [id3v2.2.0](http://id3.org/id3v2-00), [id3v2.4.0](http://id3.org/id3v2.4.0-changes)
+* [Descripion of VBR header "Xing"](https://multimedia.cx/mp3extensions.txt)
 * [Xing, Info and Lame tags specifications](http://gabriel.mp3-tech.org/mp3infotag.html)
