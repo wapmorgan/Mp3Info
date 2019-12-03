@@ -140,9 +140,9 @@ class Mp3InfoConsoleRunner {
                 self::formatTime($audio->duration),
                 $audio->isVbr ? 'vbr' : ($audio->bitRate / 1000).'kbps',
                 ($audio->sampleRate / 1000),
-                isset($audio->tags1['song']) ? self::substrIfLonger($audio->tags1['song'], 11) : null,
-                isset($audio->tags1['artist']) ? self::substrIfLonger($audio->tags1['artist'], 10) : null,
-                isset($audio->tags1['track']) ? self::substrIfLonger($audio->tags1['track'], 5) : null,
+                isset($audio->tags['song']) ? self::substrIfLonger($audio->tags['song'], 11) : null,
+                isset($audio->tags['artist']) ? self::substrIfLonger($audio->tags['artist'], 10) : null,
+                isset($audio->tags['track']) ? self::substrIfLonger($audio->tags['track'], 5) : null,
                 $audio->_parsingTime)
             .PHP_EOL;
 

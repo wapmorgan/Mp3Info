@@ -304,16 +304,22 @@ class Mp3Info {
         $header_seek_pos = ftell($fp) + self::$headerSeekLimit;
         do {
             $pos = ftell($fp);
-            $first_header_byte = $this->readBytes($fp, 4);
+            $first_header_byte = $this->readBytes($fp, 1);
             if ($first_header_byte[0] === 0xFF) {
-                fseek($fp, $pos);
-                $header_bytes = $this->readBytes($fp, 4);
-                break;
+                $second_header_byte = $this->readBytes($fp, 1);
+                if ((($second_header_byte[0] >> 5) & 0b111) == 0b111) {
+                    fseek($fp, $pos);
+                    $header_bytes = $this->readBytes($fp, 4);
+                    break;
+                }
             }
             fseek($fp, 1, SEEK_CUR);
         } while (ftell($fp) <= $header_seek_pos);
 
-        if ($header_bytes[0] !== 0xFF || (($header_bytes[1] >> 5) & 0b111) != 0b111) throw new \Exception("At ".$pos."(0x".dechex($pos).") should be a frame header!");
+        if (!isset($header_bytes) || $header_bytes[0] !== 0xFF || (($header_bytes[1] >> 5) & 0b111) != 0b111) {
+            throw new \Exception('At '.$pos
+                .'(0x'.dechex($pos).') should be a frame header!');
+        }
 
         switch ($header_bytes[1] >> 3 & 0b11) {
             case 0b00: $this->codecVersion = self::MPEG_25; break;
