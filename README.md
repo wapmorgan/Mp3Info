@@ -8,15 +8,15 @@ The fastest PHP library to get mp3 tags&meta.
 
 This class extracts information from mpeg/mp3 audio:
 
-| Audio characteristics | Audio tags (id3v1 & id3v2  |
-|-----------------------|----------------------------|
-| Duration              | song (TIT2)                |
-| Bit Rate              | artist (TPE1)              |
-| Sample Rate           | album (TALB)               |
-| Channels mode         | year (TYER)                |
-| Frames count          | comment (COMM)             |
-| Codec version         | track (TRCK)               |
-| Layer version         | genre (TCON)               |
+| Audio characteristics | Audio tags (id3v1 & id3v2)  |
+|-----------------------|-----------------------------|
+| Duration              | song (TIT2)                 |
+| Bit Rate              | artist (TPE1)               |
+| Sample Rate           | album (TALB)                |
+| Channels mode         | year (TYER)                 |
+| Frames count          | comment (COMM)              |
+| Codec version         | track (TRCK)                |
+| Layer version         | genre (TCON)                |
 
 1. Usage
 2. Performance
@@ -28,7 +28,6 @@ This class extracts information from mpeg/mp3 audio:
 
 # Usage
 After creating an instance of `Mp3Info` with passing filename as the first argument to the constructor, you can retrieve data from object properties (listed below).
-
 
 ```php
 use wapmorgan\Mp3Info\Mp3Info;
