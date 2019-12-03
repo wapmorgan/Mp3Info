@@ -85,18 +85,6 @@ class Mp3Info {
     public $audioSize;
 
     /**
-     * Contains audio file name
-     * @var string
-     */
-    public $_fileName;
-
-    /**
-     * Contains file size
-     * @var int
-     */
-    public $_fileSize;
-
-    /**
      * Audio duration in seconds.microseconds (e.g. 3603.0171428571)
      * @var float
      */
@@ -132,10 +120,9 @@ class Mp3Info {
     public $channel;
 
     /**
-     * Number of audio frames in file
-     * @var int
+     * @var array Unified list of tags (id3v1 and id3v2 united)
      */
-    public $framesCount = 0;
+    public $tags = [];
 
     /**
      * Audio tags ver. 1 (aka id3v1)
@@ -150,15 +137,11 @@ class Mp3Info {
     public $tags2 = [];
 
     /**
-     * @var int|null Size of id3-block
-     */
-    public $id3Size;
-
-    /**
      * Major version of id3v2 tag (if id3v2  present) (2 or 3 or 4)
      * @var int
      */
     public $id3v2MajorVersion;
+
     /**
      * Minor version of id3v2 tag (if id3v2  present)
      * @var int
@@ -178,6 +161,23 @@ class Mp3Info {
     public $id3v2TagsFlags = [];
 
     /**
+     * Contains audio file name
+     * @var string
+     */
+    public $_fileName;
+    /**
+     * Contains file size
+     * @var int
+     */
+    public $_fileSize;
+
+    /**
+     * Number of audio frames in file
+     * @var int
+     */
+    public $_framesCount = 0;
+
+    /**
      * Contains time spent to read&extract audio information.
      * @var float
      */
@@ -187,13 +187,12 @@ class Mp3Info {
      * Calculated frame size for Constant Bit Rate
      * @var int
      */
-    private $__cbrFrameSize;
+    private $_cbrFrameSize;
 
     /**
-     * Frame size for Variable Bit Rate
-     * @var int
+     * @var int|null Size of id3v2-data
      */
-    private $__vbrFrameSize;
+    public $_id3Size;
 
     /**
      * $mode is self::META, self::TAGS or their combination.
@@ -232,13 +231,12 @@ class Mp3Info {
         $time = microtime(true);
         $fp = fopen($filename, 'rb');
 
-        /** Size of audio data (exclude tags size)
-         * @var int */
+        /** @var int Size of audio data (exclude tags size) */
         $audioSize = $fileSize;
 
         // parse tags
         if (fread($fp, 3) == self::TAG2_SYNC) {
-            if ($mode & self::TAGS) $audioSize -= ($this->id3Size = $this->readId3v2Body($fp));
+            if ($mode & self::TAGS) $audioSize -= ($this->_id3Size = $this->readId3v2Body($fp));
             else {
                 fseek($fp, 2, SEEK_CUR); // 2 bytes of tag version
                 fseek($fp, 1, SEEK_CUR); // 1 byte of tag flags
@@ -247,7 +245,7 @@ class Mp3Info {
                     $value = substr(str_pad(base_convert($value, 10, 2), 8, 0, STR_PAD_LEFT), 1);
                 });
                 $size = bindec(implode(null, $sizeBytes)) + 10;
-                $audioSize -= ($this->id3Size = $size);
+                $audioSize -= ($this->_id3Size = $size);
             }
         }
 
@@ -257,24 +255,28 @@ class Mp3Info {
             else $audioSize -= 128;
         }
 
+        if ($mode & self::TAGS) {
+            $this->fillTags();
+        }
+
         fseek($fp, 0);
         // audio meta
         if ($mode & self::META) {
-            if ($this->id3Size !== null) fseek($fp, $this->id3Size);
+            if ($this->_id3Size !== null) fseek($fp, $this->_id3Size);
             /**
              * First frame can lie. Need to fix in future.
              * @link https://github.com/wapmorgan/Mp3Info/issues/13#issuecomment-447470813
              */
             $framesCount = $this->readMpegFrame($fp);
 
-            $this->framesCount = $framesCount !== null
+            $this->_framesCount = $framesCount !== null
                 ? $framesCount
-                : ceil($audioSize / $this->__cbrFrameSize);
+                : ceil($audioSize / $this->_cbrFrameSize);
 
             // recalculate average bit rate in vbr case
-            if ($this->isVbr && !is_null($framesCount)) {
+            if ($this->isVbr && $framesCount !== null) {
                 $avgFrameSize = $audioSize / $framesCount;
-                $this->bitRate = $avgFrameSize * $this->sampleRate / (1000 * $this->layerVersion == 3 ? 12 : 144);
+                $this->bitRate = $avgFrameSize * $this->sampleRate / (1000 * $this->layerVersion == self::LAYER_3 ? 12 : 144);
             }
 
             // The faster way to detect audio duration:
@@ -284,7 +286,7 @@ class Mp3Info {
                 $samples_in_second = floor($samples_in_second * $this->vbrProperties['quality'] / 100);
             }
             // Calculate total number of audio samples (framesCount * sampleInFrameCount) / samplesInSecondCount
-            $this->duration = ($this->framesCount - 1) * $samples_in_second / $this->sampleRate;
+            $this->duration = ($this->_framesCount - 1) * $samples_in_second / $this->sampleRate;
         }
         fclose($fp);
 
@@ -369,12 +371,12 @@ class Mp3Info {
 
         // go to the end of frame
         if ($this->layerVersion == self::LAYER_1) {
-            $this->__cbrFrameSize = floor((12 * $this->bitRate / $this->sampleRate + ($header_bytes[2] >> 1 & 0b1)) * 4);
+            $this->_cbrFrameSize = floor((12 * $this->bitRate / $this->sampleRate + ($header_bytes[2] >> 1 & 0b1)) * 4);
         } else {
-            $this->__cbrFrameSize = floor(144 * $this->bitRate / $this->sampleRate + ($header_bytes[2] >> 1 & 0b1));
+            $this->_cbrFrameSize = floor(144 * $this->bitRate / $this->sampleRate + ($header_bytes[2] >> 1 & 0b1));
         }
 
-        fseek($fp, $pos + $this->__cbrFrameSize);
+        fseek($fp, $pos + $this->_cbrFrameSize);
 
         return isset($this->vbrProperties['frames']) ? $this->vbrProperties['frames'] : null;
     }
@@ -693,19 +695,25 @@ class Mp3Info {
     /**
      * Simple function that checks mpeg-audio correctness of given file.
      * Actually it checks that first 3 bytes of file is a id3v2 tag mark or
-     * that first 11 bits of file is a frame header sync mark. To perform full
-     * test create an instance of Mp3Info with given file.
+     * that first 11 bits of file is a frame header sync mark or that 3 bytes on -128 position of file is id3v1 tag.
+     * To perform full test create an instance of Mp3Info with given file.
      *
      * @param string $filename File to be tested.
-     *
-     * @return boolean True if file is looks correct, False otherwise.
+     * @return boolean True if file looks that correct mpeg audio, False otherwise.
      * @throws \Exception
      */
     public static function isValidAudio($filename) {
         if (!file_exists($filename))
             throw new Exception('File '.$filename.' is not present!');
+
         $raw = file_get_contents($filename, false, null, 0, 3);
-        return ($raw == self::TAG2_SYNC || (self::FRAME_SYNC == (unpack('n*', $raw)[1] & self::FRAME_SYNC)));
+        return $raw == self::TAG2_SYNC // id3v2 tag
+            || (self::FRAME_SYNC == (unpack('n*', $raw)[1] & self::FRAME_SYNC)) // mpeg header tag
+            || (
+                filesize($filename) > 128
+                && file_get_contents($filename, false, null, -128, 3) === self::TAG1_SYNC
+                )  // id3v1 tag
+        ;
     }
 
     /**
@@ -722,5 +730,28 @@ class Mp3Info {
             return mb_convert_encoding($data['information'], 'utf-8', 'iso-8859-1');
         else # utf-16
             return mb_convert_encoding($data['information']."\00", 'utf-8', 'utf-16');
+    }
+
+    /**
+     * Fills `tags` property with values id3v2 and id3v1 tags.
+     */
+    protected function fillTags()
+    {
+        foreach ([
+            'song' => 'TIT2',
+            'artist' => 'TPE1',
+            'album' => 'TALB',
+            'year' => 'TYER',
+            'comment' => 'COMM',
+            'track' => 'TRCK',
+            'genre' => 'TCON',
+        ] as $tag => $id3v2_tag) {
+            if (!isset($this->tags2[$id3v2_tag]) && (!isset($this->tags1[$tag]) || empty($this->tags1[$tag])))
+                continue;
+
+            $this->tags[$tag] = isset($this->tags2[$id3v2_tag])
+                ? ($id3v2_tag === 'COMM' ? current($this->tags2[$id3v2_tag])['actual'] : $this->tags2[$id3v2_tag])
+                : $this->tags1[$tag];
+        }
     }
 }

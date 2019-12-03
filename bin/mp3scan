@@ -147,13 +147,8 @@ class Mp3InfoConsoleRunner {
             .PHP_EOL;
 
         if ($id3v2 && !empty($audio->tags2)) {
-            foreach ($audio->tags2 as $tag=>$value) {
+            foreach ($audio->tags as $tag => $value) {
                 echo '    '.$tag.': ';
-                if ($tag == 'COMM') {
-                    foreach ($value as $lang => $comment) {
-                        echo '['.$lang.'] '.$comment['short'].'; '.$comment['actual'].PHP_EOL;
-                    }
-                } else
                     echo self::convertToNativeEncoding($value).PHP_EOL;
             }
         }
