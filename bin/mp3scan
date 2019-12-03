@@ -61,17 +61,19 @@ class Mp3InfoConsoleRunner {
         echo sprintf($this->songRowTempalte, 'File name', 'dur.', 'bitrate', 'sample', 'song', 'artist', 'track',
                 'time').PHP_EOL;
 
-        foreach ($fileNames as $arg) {
-            if (is_dir($arg)) {
-                foreach (glob(rtrim($arg, DIRECTORY_SEPARATOR).DIRECTORY_SEPARATOR.'*.mp3') as $f) {
+        foreach ($fileNames as $file) {
+            $file = realpath($file);
+            if (is_dir($file)) {
+                echo $file.':'.PHP_EOL;
+                foreach (glob(rtrim($file, DIRECTORY_SEPARATOR).DIRECTORY_SEPARATOR.'*.mp3') as $f) {
                     if (is_file($f)) {
                         $this->analyze($f, false, $verbose);
                         if ($this->compareWithId3) $this->analyzeId3($f);
                     }
                 }
-            } else if (is_file($arg)) {
-                $this->analyze($arg, true, $verbose);
-                if ($this->compareWithId3) $this->analyzeId3($arg);
+            } else if (is_file($file)) {
+                $this->analyze($file, true, $verbose);
+                if ($this->compareWithId3) $this->analyzeId3($file);
             }
         }
 
@@ -87,7 +89,13 @@ class Mp3InfoConsoleRunner {
      * @return string
      */
     public static function formatTime($time) {
-        return floor($time / 60).':'.str_pad(floor($time % 60), 2, 0, STR_PAD_LEFT);
+        if ($time > 3600)
+            return floor($time / 3600)
+                .':'.str_pad(floor($time % 3600 / 60), 2, 0, STR_PAD_LEFT)
+                .':'.str_pad($time % 60, 2, 0, STR_PAD_LEFT);
+        else
+            return floor($time / 60)
+                .':'.str_pad($time % 60, 2, 0, STR_PAD_LEFT);
     }
 
     /**
