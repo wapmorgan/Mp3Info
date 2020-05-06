@@ -102,7 +102,7 @@ php bin/scan ./
 ## Technical information
 Supporting features:
 * id3v1
-* id3v2.3.0
+* id3v2.3.0, id3v2.4.0
 * CBR, Variable Bit Rate (VBR)
 
 Used sources:
