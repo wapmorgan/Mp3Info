@@ -27,15 +27,16 @@ This class extracts information from mpeg/mp3 audio:
 | track   | track   | TRCK  |
 | genre   | genre   | TCON  |
 
-1. Usage
-2. Performance
-3. Console scanner
-4. API
+# Content
+1. [Usage](#usage)
+2. [Performance](#performance)
+3. [Console scanner](#console-scanner)
+4. [API](#api)
 	- Audio information
 	- Class methods
-4. Technical information
+4. [Technical information](#technical-information)
 
-# Usage
+## Usage
 After creating an instance of `Mp3Info` with passing filename as the first argument to the constructor, you can retrieve data from object properties (listed below).
 
 ```php
@@ -69,20 +70,20 @@ echo 'Song '.$audio->tags2['TIT2'].' from '.$audio->tags2['TPE1'].PHP_EOL;
 echo 'Song '.$audio->tags['song'].' from '.$audio->tags['artist'].PHP_EOL;
 ```
 
-# Performance
+## Performance
 
 * Typically it parses one mp3-file with size around 6-7 mb in less than 0.001 sec.
 * List of 112 files with constant & variable bitRate with total duration 5:22:28 are parsed in 1.76 sec. *getId3* library against exactly the same mp3 list works for 8x-10x slower - 9.9 sec.
 * If you want, there's a very easy way to compare. Just install `nass600/get-id3` package and run console scanner against any folder with audios. It will print time that Mp3Info spent and that getId3.
 
-# Console scanner
+## Console scanner
 To test Mp3Info you can use built-in script that scans dirs and analyzes all mp3-files inside them. To launch script against current folder:
 
 ```bash
 php bin/scan ./
 ```
 
-# API
+## API
 
 ### Audio information
 
