@@ -8,15 +8,24 @@ The fastest PHP library to get mp3 tags&meta.
 
 This class extracts information from mpeg/mp3 audio:
 
-| Audio characteristics | Audio tags (id3v1 & id3v2)  |
-|-----------------------|-----------------------------|
-| Duration              | song (TIT2)                 |
-| Bit Rate              | artist (TPE1)               |
-| Sample Rate           | album (TALB)                |
-| Channels mode         | year (TYER)                 |
-| Frames count          | comment (COMM)              |
-| Codec version         | track (TRCK)                |
-| Layer version         | genre (TCON)                |
+- Audio information:
+	- Duration
+	- Bit Rate
+	- Sample Rate
+	- Channels mode
+	- Codec and Layer version
+	- Frames count
+- Audio tags:
+
+| tag     | id3v1   | id3v2 |
+|---------|---------|-------|
+| song    | song    | TIT2  |
+| artist  | artist  | TPE1  |
+| album   | album   | TALB  |
+| year    | year    | TYER  |
+| comment | comment | COMM  |
+| track   | track   | TRCK  |
+| genre   | genre   | TCON  |
 
 1. Usage
 2. Performance
