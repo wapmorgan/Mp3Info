@@ -40,7 +40,7 @@ This class extracts information from mpeg/mp3 audio:
 After creating an instance of `Mp3Info` with passing filename as the first argument to the constructor, you can retrieve data from object properties (listed below).
 
 ```php
-use wapmorgan\Mp3Info\Mp3Info;
+use Wapmorgan\Mp3Info\Mp3Info;
 // To get basic audio information
 $audio = new Mp3Info('./audio.mp3');
 
@@ -66,7 +66,7 @@ echo 'Song '.$audio->tags1['song'].' from '.$audio->tags1['artist'].PHP_EOL;
 // specific id3v2 tags
 echo 'Song '.$audio->tags2['TIT2'].' from '.$audio->tags2['TPE1'].PHP_EOL;
 
-// combined tags (simplies way to get as more information as possible)
+// combined tags (simplest way to get as more information as possible)
 echo 'Song '.$audio->tags['song'].' from '.$audio->tags['artist'].PHP_EOL;
 ```
 
