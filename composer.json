@@ -6,7 +6,7 @@
 	"description": "The fastest php library to extract mp3 tags & meta information.",
 	"autoload": {
 		"psr-4": {
-            "wapmorgan\\Mp3Info\\": "src/"
+            "Wapmorgan\\Mp3Info\\": "src/"
         }
 	},
 	"require": {

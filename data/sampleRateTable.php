@@ -1,5 +1,6 @@
 <?php
-use wapmorgan\Mp3Info\Mp3Info;
+
+use Wapmorgan\Mp3Info\Mp3Info;
 
 return [
     Mp3Info::MPEG_1 => [44100, 48000, 32000, false], // MPEG 1

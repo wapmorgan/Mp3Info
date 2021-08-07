@@ -1,5 +1,6 @@
 <?php
-namespace wapmorgan\Mp3Info;
+
+namespace Wapmorgan\Mp3Info;
 
 use Exception;
 use RuntimeException;
@@ -23,7 +24,8 @@ use RuntimeException;
  * * {@link https://multimedia.cx/mp3extensions.txt Descripion of VBR header "Xing"}
  * * {@link http://gabriel.mp3-tech.org/mp3infotag.html Xing, Info and Lame tags specifications}
  */
-class Mp3Info {
+class Mp3Info
+{
     const TAG1_SYNC = 'TAG';
     const TAG2_SYNC = 'ID3';
     const VBR_SYNC = 'Xing';
@@ -212,14 +214,15 @@ class Mp3Info {
      *
      * @throws \Exception
      */
-    public function __construct($filename, $parseTags = false) {
+    public function __construct($filename, $parseTags = false)
+    {
         if (self::$_bitRateTable === null)
-            self::$_bitRateTable = require dirname(__FILE__).'/../data/bitRateTable.php';
+            self::$_bitRateTable = require dirname(__FILE__) . '/../data/bitRateTable.php';
         if (self::$_sampleRateTable === null)
-            self::$_sampleRateTable = require dirname(__FILE__).'/../data/sampleRateTable.php';
+            self::$_sampleRateTable = require dirname(__FILE__) . '/../data/sampleRateTable.php';
 
         if (!file_exists($filename))
-            throw new \Exception('File '.$filename.' is not present!');
+            throw new \Exception('File ' . $filename . ' is not present!');
 
         $mode = $parseTags ? self::META | self::TAGS : self::META;
         $this->audioSize = $this->parseAudio($this->_fileName = $filename, $this->_fileSize = filesize($filename), $mode);
@@ -237,7 +240,8 @@ class Mp3Info {
      * @return float|int
      * @throws \Exception
      */
-    private function parseAudio($filename, $fileSize, $mode) {
+    private function parseAudio($filename, $fileSize, $mode)
+    {
         $time = microtime(true);
         $fp = fopen($filename, 'rb');
 
@@ -310,7 +314,8 @@ class Mp3Info {
      * @return int Number of frames (if present if first frame of VBR-file)
      * @throws \Exception
      */
-    private function readMpegFrame($fp) {
+    private function readMpegFrame($fp)
+    {
         $header_seek_pos = ftell($fp) + self::$headerSeekLimit;
         do {
             $pos = ftell($fp);
@@ -327,31 +332,53 @@ class Mp3Info {
         } while (ftell($fp) <= $header_seek_pos);
 
         if (!isset($header_bytes) || $header_bytes[0] !== 0xFF || (($header_bytes[1] >> 5) & 0b111) != 0b111) {
-            throw new \Exception('At '.$pos
-                .'(0x'.dechex($pos).') should be a frame header!');
+            throw new \Exception('At ' . $pos
+                . '(0x' . dechex($pos) . ') should be a frame header!');
         }
 
         switch ($header_bytes[1] >> 3 & 0b11) {
-            case 0b00: $this->codecVersion = self::MPEG_25; break;
-            case 0b01: $this->codecVersion = self::CODEC_UNDEFINED; break;
-            case 0b10: $this->codecVersion = self::MPEG_2; break;
-            case 0b11: $this->codecVersion = self::MPEG_1; break;
+            case 0b00:
+                $this->codecVersion = self::MPEG_25;
+                break;
+            case 0b01:
+                $this->codecVersion = self::CODEC_UNDEFINED;
+                break;
+            case 0b10:
+                $this->codecVersion = self::MPEG_2;
+                break;
+            case 0b11:
+                $this->codecVersion = self::MPEG_1;
+                break;
         }
 
         switch ($header_bytes[1] >> 1 & 0b11) {
-            case 0b01: $this->layerVersion = self::LAYER_3; break;
-            case 0b10: $this->layerVersion = self::LAYER_2; break;
-            case 0b11: $this->layerVersion = self::LAYER_1; break;
+            case 0b01:
+                $this->layerVersion = self::LAYER_3;
+                break;
+            case 0b10:
+                $this->layerVersion = self::LAYER_2;
+                break;
+            case 0b11:
+                $this->layerVersion = self::LAYER_1;
+                break;
         }
 
         $this->bitRate = self::$_bitRateTable[$this->codecVersion][$this->layerVersion][$header_bytes[2] >> 4];
         $this->sampleRate = self::$_sampleRateTable[$this->codecVersion][($header_bytes[2] >> 2) & 0b11];
 
         switch ($header_bytes[3] >> 6) {
-            case 0b00: $this->channel = self::STEREO; break;
-            case 0b01: $this->channel = self::JOINT_STEREO; break;
-            case 0b10: $this->channel = self::DUAL_MONO; break;
-            case 0b11: $this->channel = self::MONO; break;
+            case 0b00:
+                $this->channel = self::STEREO;
+                break;
+            case 0b01:
+                $this->channel = self::JOINT_STEREO;
+                break;
+            case 0b10:
+                $this->channel = self::DUAL_MONO;
+                break;
+            case 0b11:
+                $this->channel = self::MONO;
+                break;
         }
 
         $vbr_offset = self::$_vbrOffsets[$this->codecVersion][$this->channel == self::MONO ? 0 : 1];
@@ -399,11 +426,12 @@ class Mp3Info {
      * @return array
      * @throws \Exception
      */
-    private function readBytes($fp, $n) {
+    private function readBytes($fp, $n)
+    {
         $raw = fread($fp, $n);
         if (strlen($raw) !== $n) throw new \Exception('Unexpected end of file!');
         $bytes = array();
-        for($i = 0; $i < $n; $i++) $bytes[$i] = ord($raw[$i]);
+        for ($i = 0; $i < $n; $i++) $bytes[$i] = ord($raw[$i]);
         return $bytes;
     }
 
@@ -411,7 +439,8 @@ class Mp3Info {
      * Reads id3v1 tag.
      * @return int Returns length of id3v1 tag.
      */
-    private function readId3v1Body($fp) {
+    private function readId3v1Body($fp)
+    {
         $this->tags1['song'] = trim(fread($fp, 30));
         $this->tags1['artist'] = trim(fread($fp, 30));
         $this->tags1['album'] = trim(fread($fp, 30));
@@ -523,7 +552,7 @@ class Mp3Info {
         } else if ($this->id3v2MajorVersion == 3) {
             // parse id3v2.3.0 body
             $this->parseId3v23Body($fp, 10 + $size);
-        } else if ($this->id3v2MajorVersion == 4)  {
+        } else if ($this->id3v2MajorVersion == 4) {
             // parse id3v2.4.0 body
             $this->parseId3v24Body($fp, 10 + $size);
         }
@@ -535,7 +564,8 @@ class Mp3Info {
      * Parses id3v2.3.0 tag body.
      * @todo Complete.
      */
-    private function parseId3v23Body($fp, $lastByte) {
+    private function parseId3v23Body($fp, $lastByte)
+    {
         while (ftell($fp) < $lastByte) {
             $raw = fread($fp, 10);
             $frame_id = substr($raw, 0, 4);
@@ -662,8 +692,7 @@ class Mp3Info {
                             } else # no condition for iso-8859-1
                                 $actual_text = null;
 
-                        }
-                        else if ($actual_text !== false) $actual_text .= $char;
+                        } else if ($actual_text !== false) $actual_text .= $char;
                         else $short_description .= $char;
                     }
                     if ($actual_text === false) $actual_text = $short_description;
@@ -852,8 +881,7 @@ class Mp3Info {
                             } else # no condition for iso-8859-1
                                 $actual_text = null;
 
-                        }
-                        else if ($actual_text !== false) $actual_text .= $char;
+                        } else if ($actual_text !== false) $actual_text .= $char;
                         else $short_description .= $char;
                     }
                     if ($actual_text === false) $actual_text = $short_description;
@@ -917,9 +945,10 @@ class Mp3Info {
      * @return boolean True if file looks that correct mpeg audio, False otherwise.
      * @throws \Exception
      */
-    public static function isValidAudio($filename) {
+    public static function isValidAudio($filename)
+    {
         if (!file_exists($filename))
-            throw new Exception('File '.$filename.' is not present!');
+            throw new Exception('File ' . $filename . ' is not present!');
 
         $raw = file_get_contents($filename, false, null, 0, 3);
         return $raw == self::TAG2_SYNC // id3v2 tag
@@ -927,8 +956,8 @@ class Mp3Info {
             || (
                 filesize($filename) > 128
                 && file_get_contents($filename, false, null, -128, 3) === self::TAG1_SYNC
-                )  // id3v1 tag
-        ;
+            )  // id3v1 tag
+            ;
     }
 
     /**
@@ -941,7 +970,7 @@ class Mp3Info {
     {
         $data = unpack('C1encoding/A' . ($frameSize - 1) . 'information', $raw);
 
-        switch($data['encoding']) {
+        switch ($data['encoding']) {
             case 0x00: # ISO-8859-1
                 return mb_convert_encoding($data['information'], 'utf-8', 'iso-8859-1');
             case 0x01: # utf-16 with BOM
@@ -954,7 +983,7 @@ class Mp3Info {
                 return $data['information'];
 
             default:
-                throw new RuntimeException('Unknown text encoding type: '.$data['encoding']);
+                throw new RuntimeException('Unknown text encoding type: ' . $data['encoding']);
         }
     }
 
@@ -964,14 +993,14 @@ class Mp3Info {
     protected function fillTags()
     {
         foreach ([
-            'song' => 'TIT2',
-            'artist' => 'TPE1',
-            'album' => 'TALB',
-            'year' => 'TYER',
-            'comment' => 'COMM',
-            'track' => 'TRCK',
-            'genre' => 'TCON',
-        ] as $tag => $id3v2_tag) {
+                     'song' => 'TIT2',
+                     'artist' => 'TPE1',
+                     'album' => 'TALB',
+                     'year' => 'TYER',
+                     'comment' => 'COMM',
+                     'track' => 'TRCK',
+                     'genre' => 'TCON',
+                 ] as $tag => $id3v2_tag) {
             if (!isset($this->tags2[$id3v2_tag]) && (!isset($this->tags1[$tag]) || empty($this->tags1[$tag])))
                 continue;
 
