@@ -162,7 +162,21 @@ class Mp3InfoConsoleRunner {
         }
 
         if ($verbose) {
-            print_r(get_object_vars($audio));
+            print_r(array_intersect_key(get_object_vars($audio), array_flip([
+                'codecVersion',
+                'layerVersion',
+                'duration',
+                'bitRate',
+                'sampleRate',
+                'isVbr',
+                'hasCover',
+                'channel',
+                'tags',
+                'tags1',
+                'tags2',
+                'id3v2MajorVersion',
+                'id3v2MinorVersion',
+            ])));
         }
 
         $this->totalDuration += $audio->duration;

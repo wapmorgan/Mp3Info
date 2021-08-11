@@ -78,50 +78,54 @@ class Mp3Info {
     public static $headerSeekLimit = 2048;
 
     /**
-     * MPEG codec version (1 or 2 or 2.5 or undefined)
-     * @var int
+     * @var int MPEG codec version (1 or 2 or 2.5 or undefined)
      */
     public $codecVersion;
 
     /**
-     * Audio layer version (1 or 2 or 3)
-     * @var int
+     * @var int Audio layer version (1 or 2 or 3)
      */
     public $layerVersion;
+
     /**
-     * Audio size in bytes. Note that this value is NOT equals file size.
-     * @var int
+     * @var int Audio size in bytes. Note that this value is NOT equals file size.
      */
     public $audioSize;
 
     /**
-     * Audio duration in seconds.microseconds (e.g. 3603.0171428571)
-     * @var float
+     * @var float Audio duration in seconds.microseconds (e.g. 3603.0171428571)
      */
     public $duration;
 
     /**
-     * Audio bit rate in bps (e.g. 128000)
+     * @var int Audio bit rate in bps (e.g. 128000)
      */
     public $bitRate;
 
     /**
-     * Audio sample rate in Hz (e.g. 44100)
-     * @var int
+     * @var int Audio sample rate in Hz (e.g. 44100)
      */
     public $sampleRate;
 
     /**
-     * Contains true if audio has variable bit rate
-     * @var boolean
+     * @var boolean Contains true if audio has variable bit rate
      */
     public $isVbr = false;
 
     /**
-     * Contains VBR properties
-     * @var array
+     * @var boolean Contains true if audio has cover
+     */
+    public $hasCover = false;
+
+    /**
+     * @var array Contains VBR properties
      */
     public $vbrProperties = [];
+
+    /**
+     * @var array Contains picture properties
+     */
+    public $coverProperties = [];
 
     /**
      * Channel mode (stereo or dual_mono or joint_stereo or mono)
@@ -135,67 +139,57 @@ class Mp3Info {
     public $tags = [];
 
     /**
-     * Audio tags ver. 1 (aka id3v1)
-     * @var array
+     * @var array Audio tags ver. 1 (aka id3v1)
      */
     public $tags1 = [];
 
     /**
-     * Audio tags ver. 2 (aka id3v2)
-     * @var array
+     * @var array Audio tags ver. 2 (aka id3v2)
      */
     public $tags2 = [];
 
     /**
-     * Major version of id3v2 tag (if id3v2  present) (2 or 3 or 4)
-     * @var int
+     * @var int Major version of id3v2 tag (if id3v2  present) (2 or 3 or 4)
      */
     public $id3v2MajorVersion;
 
     /**
-     * Minor version of id3v2 tag (if id3v2  present)
-     * @var int
+     * @var int Minor version of id3v2 tag (if id3v2 present)
      */
     public $id3v2MinorVersion;
 
     /**
-     * List of id3v2 header flags (if id3v2  present)
-     * @var array
+     * @var array List of id3v2 header flags (if id3v2 present)
      */
     public $id3v2Flags = [];
 
     /**
-     * List of id3v2 tags flags (if id3v2 present)
-     * @var array
+     * @var array List of id3v2 tags flags (if id3v2 present)
      */
     public $id3v2TagsFlags = [];
 
     /**
-     * Contains audio file name
-     * @var string
+     * @var string Contains audio file name
      */
     public $_fileName;
+
     /**
-     * Contains file size
-     * @var int
+     * @var int Contains file size
      */
     public $_fileSize;
 
     /**
-     * Number of audio frames in file
-     * @var int
+     * @var int Number of audio frames in file
      */
     public $_framesCount = 0;
 
     /**
-     * Contains time spent to read&extract audio information.
-     * @var float
+     * @var float Contains time spent to read&extract audio information.
      */
     public $_parsingTime;
 
     /**
-     * Calculated frame size for Constant Bit Rate
-     * @var int
+     * @var int Calculated frame size for Constant Bit Rate
      */
     private $_cbrFrameSize;
 
@@ -223,6 +217,22 @@ class Mp3Info {
 
         $mode = $parseTags ? self::META | self::TAGS : self::META;
         $this->audioSize = $this->parseAudio($this->_fileName = $filename, $this->_fileSize = filesize($filename), $mode);
+    }
+
+    /**
+     * @return bool|null
+     */
+    public function getCover()
+    {
+        if (empty($this->coverProperties)) {
+            return null;
+        }
+
+        $fp = fopen($this->_fileName, 'rb');
+        fseek($fp, $this->coverProperties['offset']);
+        $data = fread($fp, $this->coverProperties['size']);
+        fclose($fp);
+        return $data;
     }
 
     /**
@@ -274,7 +284,7 @@ class Mp3Info {
         if ($mode & self::META) {
             if ($this->_id3Size !== null) fseek($fp, $this->_id3Size);
             /**
-             * First frame can lie. Need to fix in future.
+             * First frame can lie. Need to fix in the future.
              * @link https://github.com/wapmorgan/Mp3Info/issues/13#issuecomment-447470813
              */
             $framesCount = $this->readMpegFrame($fp);
@@ -292,9 +302,10 @@ class Mp3Info {
             // The faster way to detect audio duration:
             $samples_in_second = $this->layerVersion == 1 ? self::LAYER_1_FRAME_SIZE : self::LAYERS_23_FRAME_SIZE;
             // for VBR: adjust samples in second according to VBR quality
-            if ($this->isVbr && isset($this->vbrProperties['quality'])) {
-                $samples_in_second = floor($samples_in_second * $this->vbrProperties['quality'] / 100);
-            }
+            // disabled for now
+//            if ($this->isVbr && isset($this->vbrProperties['quality'])) {
+//                $samples_in_second = floor($samples_in_second * $this->vbrProperties['quality'] / 100);
+//            }
             // Calculate total number of audio samples (framesCount * sampleInFrameCount) / samplesInSecondCount
             $this->duration = ($this->_framesCount - 1) * $samples_in_second / $this->sampleRate;
         }
@@ -535,7 +546,7 @@ class Mp3Info {
      * Parses id3v2.3.0 tag body.
      * @todo Complete.
      */
-    private function parseId3v23Body($fp, $lastByte) {
+    protected function parseId3v23Body($fp, $lastByte) {
         while (ftell($fp) < $lastByte) {
             $raw = fread($fp, 10);
             $frame_id = substr($raw, 0, 4);
@@ -571,41 +582,40 @@ class Mp3Info {
                 case 'TRCK':    # Track number/Position in set
                 case 'TIT2':    # Title/songname/content description
                 case 'TPE1':    # Lead performer(s)/Soloist(s)
+                case 'TBPM':    # BPM (beats per minute)
+                case 'TCOM':    # Composer
+                case 'TCOP':    # Copyright message
+                case 'TDAT':    # Date
+                case 'TDLY':    # Playlist delay
+                case 'TENC':    # Encoded by
+                case 'TEXT':    # Lyricist/Text writer
+                case 'TFLT':    # File type
+                case 'TIME':    # Time
+                case 'TIT1':    # Content group description
+                case 'TIT3':    # Subtitle/Description refinement
+                case 'TKEY':    # Initial key
+                case 'TLAN':    # Language(s)
+                case 'TLEN':    # Length
+                case 'TMED':    # Media type
+                case 'TOAL':    # Original album/movie/show title
+                case 'TOFN':    # Original filename
+                case 'TOLY':    # Original lyricist(s)/text writer(s)
+                case 'TOPE':    # Original artist(s)/performer(s)
+                case 'TORY':    # Original release year
+                case 'TOWN':    # File owner/licensee
+                case 'TPE2':    # Band/orchestra/accompaniment
+                case 'TPE3':    # Conductor/performer refinement
+                case 'TPE4':    # Interpreted, remixed, or otherwise modified by
+                case 'TPOS':    # Part of a set
+                case 'TPUB':    # Publisher
+                case 'TRDA':    # Recording dates
+                case 'TRSN':    # Internet radio station name
+                case 'TRSO':    # Internet radio station owner
+                case 'TSIZ':    # Size
+                case 'TSRC':    # ISRC (international standard recording code)
+                case 'TSSE':    # Software/Hardware and settings used for encoding
                     $this->tags2[$frame_id] = $this->handleTextFrame($frame_size, fread($fp, $frame_size));
                     break;
-                // case 'TBPM':    # BPM (beats per minute)
-                // case 'TCOM':    # Composer
-                // case 'TCOP':    # Copyright message
-                // case 'TDAT':    # Date
-                // case 'TDLY':    # Playlist delay
-                // case 'TENC':    # Encoded by
-                // case 'TEXT':    # Lyricist/Text writer
-                // case 'TFLT':    # File type
-                // case 'TIME':    # Time
-                // case 'TIT1':    # Content group description
-                // case 'TIT3':    # Subtitle/Description refinement
-                // case 'TKEY':    # Initial key
-                // case 'TLAN':    # Language(s)
-                // case 'TLEN':    # Length
-                // case 'TMED':    # Media type
-                // case 'TOAL':    # Original album/movie/show title
-                // case 'TOFN':    # Original filename
-                // case 'TOLY':    # Original lyricist(s)/text writer(s)
-                // case 'TOPE':    # Original artist(s)/performer(s)
-                // case 'TORY':    # Original release year
-                // case 'TOWN':    # File owner/licensee
-                // case 'TPE2':    # Band/orchestra/accompaniment
-                // case 'TPE3':    # Conductor/performer refinement
-                // case 'TPE4':    # Interpreted, remixed, or otherwise modified by
-                // case 'TPOS':    # Part of a set
-                // case 'TPUB':    # Publisher
-                // case 'TRDA':    # Recording dates
-                // case 'TRSN':    # Internet radio station name
-                // case 'TRSO':    # Internet radio station owner
-                // case 'TSIZ':    # Size
-                // case 'TSRC':    # ISRC (international standard recording code)
-                // case 'TSSE':    # Software/Hardware and settings used for encoding
-
                 ################# Text information frames
 
                 ################# URL link frames
@@ -680,8 +690,18 @@ class Mp3Info {
                 //     break;
                 // case 'RVRB':    # Reverb
                 //     break;
-                // case 'APIC':    # Attached picture
-                //     break;
+                 case 'APIC':    # Attached picture
+                     $this->hasCover = true;
+                     $last_byte = ftell($fp) + $frame_size;
+                     $this->coverProperties = ['text_encoding' => ord(fread($fp, 1))];
+//                     fseek($fp, $frame_size - 4, SEEK_CUR);
+                     $this->coverProperties['mime_type'] = $this->readTextUntilNull($fp, $last_byte);
+                     $this->coverProperties['picture_type'] = ord(fread($fp, 1));
+                     $this->coverProperties['description'] = $this->readTextUntilNull($fp, $last_byte);
+                     $this->coverProperties['offset'] = ftell($fp);
+                     $this->coverProperties['size'] = $last_byte - ftell($fp);
+                     fseek($fp, $last_byte);
+                     break;
                 // case 'GEOB':    # General encapsulated object
                 //     break;
                 case 'PCNT':    # Play counter
@@ -761,40 +781,40 @@ class Mp3Info {
                 case 'TRCK':    # Track number/Position in set
                 case 'TIT2':    # Title/songname/content description
                 case 'TPE1':    # Lead performer(s)/Soloist(s)
+                case 'TBPM':    # BPM (beats per minute)
+                case 'TCOM':    # Composer
+                case 'TCOP':    # Copyright message
+                case 'TDAT':    # Date
+                case 'TDLY':    # Playlist delay
+                case 'TENC':    # Encoded by
+                case 'TEXT':    # Lyricist/Text writer
+                case 'TFLT':    # File type
+                case 'TIME':    # Time
+                case 'TIT1':    # Content group description
+                case 'TIT3':    # Subtitle/Description refinement
+                case 'TKEY':    # Initial key
+                case 'TLAN':    # Language(s)
+                case 'TLEN':    # Length
+                case 'TMED':    # Media type
+                case 'TOAL':    # Original album/movie/show title
+                case 'TOFN':    # Original filename
+                case 'TOLY':    # Original lyricist(s)/text writer(s)
+                case 'TOPE':    # Original artist(s)/performer(s)
+                case 'TORY':    # Original release year
+                case 'TOWN':    # File owner/licensee
+                case 'TPE2':    # Band/orchestra/accompaniment
+                case 'TPE3':    # Conductor/performer refinement
+                case 'TPE4':    # Interpreted, remixed, or otherwise modified by
+                case 'TPOS':    # Part of a set
+                case 'TPUB':    # Publisher
+                case 'TRDA':    # Recording dates
+                case 'TRSN':    # Internet radio station name
+                case 'TRSO':    # Internet radio station owner
+                case 'TSIZ':    # Size
+                case 'TSRC':    # ISRC (international standard recording code)
+                case 'TSSE':    # Software/Hardware and settings used for encoding
                     $this->tags2[$frame_id] = $this->handleTextFrame($frame_size, fread($fp, $frame_size));
                     break;
-                // case 'TBPM':    # BPM (beats per minute)
-                // case 'TCOM':    # Composer
-                // case 'TCOP':    # Copyright message
-                // case 'TDAT':    # Date
-                // case 'TDLY':    # Playlist delay
-                // case 'TENC':    # Encoded by
-                // case 'TEXT':    # Lyricist/Text writer
-                // case 'TFLT':    # File type
-                // case 'TIME':    # Time
-                // case 'TIT1':    # Content group description
-                // case 'TIT3':    # Subtitle/Description refinement
-                // case 'TKEY':    # Initial key
-                // case 'TLAN':    # Language(s)
-                // case 'TLEN':    # Length
-                // case 'TMED':    # Media type
-                // case 'TOAL':    # Original album/movie/show title
-                // case 'TOFN':    # Original filename
-                // case 'TOLY':    # Original lyricist(s)/text writer(s)
-                // case 'TOPE':    # Original artist(s)/performer(s)
-                // case 'TORY':    # Original release year
-                // case 'TOWN':    # File owner/licensee
-                // case 'TPE2':    # Band/orchestra/accompaniment
-                // case 'TPE3':    # Conductor/performer refinement
-                // case 'TPE4':    # Interpreted, remixed, or otherwise modified by
-                // case 'TPOS':    # Part of a set
-                // case 'TPUB':    # Publisher
-                // case 'TRDA':    # Recording dates
-                // case 'TRSN':    # Internet radio station name
-                // case 'TRSO':    # Internet radio station owner
-                // case 'TSIZ':    # Size
-                // case 'TSRC':    # ISRC (international standard recording code)
-                // case 'TSSE':    # Software/Hardware and settings used for encoding
 
                 ################# Text information frames
 
@@ -870,8 +890,18 @@ class Mp3Info {
                 //     break;
                 // case 'RVRB':    # Reverb
                 //     break;
-                // case 'APIC':    # Attached picture
-                //     break;
+                case 'APIC':    # Attached picture
+                    $this->hasCover = true;
+                    $last_byte = ftell($fp) + $frame_size;
+                    $this->coverProperties = ['text_encoding' => ord(fread($fp, 1))];
+//                     fseek($fp, $frame_size - 4, SEEK_CUR);
+                    $this->coverProperties['mime_type'] = $this->readTextUntilNull($fp, $last_byte);
+                    $this->coverProperties['picture_type'] = ord(fread($fp, 1));
+                    $this->coverProperties['description'] = $this->readTextUntilNull($fp, $last_byte);
+                    $this->coverProperties['offset'] = ftell($fp);
+                    $this->coverProperties['size'] = $last_byte - ftell($fp);
+                    fseek($fp, $last_byte);
+                    break;
                 // case 'GEOB':    # General encapsulated object
                 //     break;
                 case 'PCNT':    # Play counter
@@ -956,6 +986,24 @@ class Mp3Info {
             default:
                 throw new RuntimeException('Unknown text encoding type: '.$data['encoding']);
         }
+    }
+
+    /**
+     * @param resource $fp
+     * @param int $dataEnd
+     * @return string|null
+     */
+    private function readTextUntilNull($fp, $dataEnd)
+    {
+        $text = null;
+        while (ftell($fp) < $dataEnd) {
+            $char = fgetc($fp);
+            if ($char === "\00") {
+                return $text;
+            }
+            $text .= $char;
+        }
+        return $text;
     }
 
     /**
