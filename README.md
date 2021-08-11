@@ -15,6 +15,7 @@ This class extracts information from mpeg/mp3 audio:
 	- Channels mode
 	- Codec and Layer version
 	- Frames count
+- Audio image (cover)
 - Audio tags:
 
 | tag     | id3v1   | id3v2 |
@@ -87,27 +88,32 @@ php bin/scan ./
 
 ### Audio information
 
-| Property        | Description                                                         | Values                                                      |
-|-----------------|---------------------------------------------------------------------|-------------------------------------------------------------|
-| `$codecVersion` | MPEG codec version                                                  | 1 or 2                                                      |
-| `$layerVersion` | Audio layer version                                                 | 1 or 2 or 3                                                 |
-| `$audioSize`    | Audio size in bytes. Note that this value is NOT equals file size.  | *int*                                                       |
-| `$duration`     | Audio duration in seconds.microseconds                              | like 3603.0171428571 (means 1 hour and 3 sec)               |
-| `$bitRate`      | Audio bit rate in bps                                               | like 128000 (means 128kb/s)                                 |
-| `$sampleRate`   | Audio sample rate in Hz                                             | like 44100 (means 44.1KHz)                                  |
-| `$isVbr`        | Contains true if audio has variable bit rate                        | *boolean*                                                   |
-| `$channel`      | Channel mode                                                        | `'stereo'` or `'dual_mono'` or `'joint_stereo'` or `'mono'` |
-| `$tags1`        | Audio tags ver. 1 (aka id3v1).                                      | ["song" => "Song name", "year" => 2009]                     |
-| `$tags2`        | Audio tags ver. 2 (aka id3v2), only text ones.                      | ["TIT2" => "Long song name", ...]                           |
-| `$tags`         | Combined audio tags (from id3v1 & id3v2). Keys as in tags1.         | ["song" => "Long song name", "year" => 2009, ...]           |
-| `$_parsingTime` | Contains time spent to read&extract audio information in *sec.msec* |                                                             |
+| Property           | Description                                                         | Values                                                      |
+|--------------------|---------------------------------------------------------------------|-------------------------------------------------------------|
+| `$codecVersion`    | MPEG codec version                                                  | 1 or 2                                                      |
+| `$layerVersion`    | Audio layer version                                                 | 1 or 2 or 3                                                 |
+| `$audioSize`       | Audio size in bytes. Note that this value is NOT equals file size.  | *int*                                                       |
+| `$duration`        | Audio duration in seconds.microseconds                              | like 3603.0171428571 (means 1 hour and 3 sec)               |
+| `$bitRate`         | Audio bit rate in bps                                               | like 128000 (means 128kb/s)                                 |
+| `$sampleRate`      | Audio sample rate in Hz                                             | like 44100 (means 44.1KHz)                                  |
+| `$isVbr`           | Contains `true` if audio has variable bit rate                      | *boolean*                                                   |
+| `$hasCover`        | Contains `true` if audio has a bundled image                        | *boolean*                                                   |
+| `$channel`         | Channel mode                                                        | `'stereo'` or `'dual_mono'` or `'joint_stereo'` or `'mono'` |
+| `$tags1`           | Audio tags ver. 1 (aka id3v1).                                      | ["song" => "Song name", "year" => 2009]                     |
+| `$tags2`           | Audio tags ver. 2 (aka id3v2), only text ones.                      | ["TIT2" => "Long song name", ...]                           |
+| `$tags`            | Combined audio tags (from id3v1 & id3v2). Keys as in tags1.         | ["song" => "Long song name", "year" => 2009, ...]           |
+| `$coverProperties` | Information about a bundled with audio image.                       | ["mime_type" => "image/jpeg", "picture_type" => 1, ...]     |
+| `$_parsingTime`    | Contains time spent to read&extract audio information in *sec.msec* |                                                             |
 
 ### Class methods
-- `public function __construct($filename, $parseTags = false)`
-	Creates new instance of object and initiate parsing. If second argument is *true*, audio tags also will be parsed.
+- `$audio = new Mp3Info($filename, $parseTags = false)`
+    Creates new instance of object and initiate parsing. If you need to parse audio tags (id3v1 and id3v2), pass `true` as second argument is.
 
-- `static public function isValidAudio($filename)`
-	Checks if file `$filename` looks like an mp3-file. Returns **true** if file similar to mp3, otherwise false.
+- `$audio->getCover()`
+	Returns raw content of bundled with audio image.
+
+- `Mp3Info::isValidAudio($filename)`
+    Static method that checks if file `$filename` looks like a mp3-file. Returns `true` if file looks like a mp3, otherwise false.
 
 ## Technical information
 Supporting features:
