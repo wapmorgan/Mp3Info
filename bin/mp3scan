@@ -61,8 +61,8 @@ class Mp3InfoConsoleRunner {
         echo sprintf($this->songRowTempalte, 'File name', 'dur.', 'bitrate', 'sample', 'song', 'artist', 'track',
                 'time').PHP_EOL;
 
-        foreach ($fileNames as $file) {
-            $file = realpath($file);
+        foreach ($fileNames as $originalFile) {
+            $file = realpath($originalFile);
             if (is_dir($file)) {
                 echo $file.':'.PHP_EOL;
                 foreach (glob(rtrim($file, DIRECTORY_SEPARATOR).DIRECTORY_SEPARATOR.'*.mp3') as $f) {
@@ -74,6 +74,8 @@ class Mp3InfoConsoleRunner {
             } else if (is_file($file)) {
                 $this->analyze($file, true, $verbose);
                 if ($this->compareWithId3) $this->analyzeId3($file);
+            } else if (strpos($originalFile, '://') !== false) {
+                $this->analyze($originalFile, true, $verbose);
             }
         }
 
@@ -135,11 +137,12 @@ class Mp3InfoConsoleRunner {
      * @return null|void
      */
     protected function analyze($filename, $id3v2 = false, $verbose = false) {
-        if (!is_readable($filename)) return;
+        if (!is_readable($filename) && strpos($filename, '://') === false) return;
+
         try {
             $audio = new Mp3Info($filename, true);
         } catch (Exception $e) {
-            var_dump("Exception when parsing ".$filename.': '.$e->getMessage());
+            echo "Exception when parsing ".$filename.': '.$e->getMessage().PHP_EOL;
             return null;
         }
 

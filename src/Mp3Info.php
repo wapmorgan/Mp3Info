@@ -212,11 +212,23 @@ class Mp3Info {
         if (self::$_sampleRateTable === null)
             self::$_sampleRateTable = require dirname(__FILE__).'/../data/sampleRateTable.php';
 
-        if (!file_exists($filename))
-            throw new \Exception('File '.$filename.' is not present!');
+        $this->_fileName = $filename;
+
+        if (strpos($filename, '://') !== false) {
+            $this->_fileSize = static::getUrlContentLength($filename);
+        } else {
+            if (!file_exists($filename)) {
+                throw new \Exception('File ' . $filename . ' is not present!');
+            }
+            $this->_fileSize = filesize($filename);
+        }
+
+        if (!static::isValidAudio($filename)) {
+            throw new \Exception('File ' . $filename . ' is not mpeg/audio!');
+        }
 
         $mode = $parseTags ? self::META | self::TAGS : self::META;
-        $this->audioSize = $this->parseAudio($this->_fileName = $filename, $this->_fileSize = filesize($filename), $mode);
+        $this->audioSize = $this->parseAudio($this->_fileName, $this->_fileSize, $mode);
     }
 
     /**
@@ -241,15 +253,23 @@ class Mp3Info {
      * ID3V2 TAG - provides a lot of meta data. [optional]
      * MPEG AUDIO FRAMES - contains audio data. A frame consists of a frame header and a frame data. The first frame may contain extra information about mp3 (marked with "Xing" or "Info" string). Rest of frames can contain only audio data.
      * ID3V1 TAG - provides a few of meta data. [optional]
-     * @param $filename
-     * @param $fileSize
-     * @param $mode
+     * @param string $filename
+     * @param int $fileSize
+     * @param int $mode
      * @return float|int
      * @throws \Exception
      */
     private function parseAudio($filename, $fileSize, $mode) {
         $time = microtime(true);
-        $fp = fopen($filename, 'rb');
+
+        // create temp storage for media
+        if (strpos($filename, '://') !== false) {
+            $fp = fopen('php://memory', 'rwb');
+            fwrite($fp, file_get_contents($filename));
+            rewind($fp);
+        } else {
+            $fp = fopen($filename, 'rb');
+        }
 
         /** @var int Size of audio data (exclude tags size) */
         $audioSize = $fileSize;
@@ -938,30 +958,6 @@ class Mp3Info {
     }
 
     /**
-     * Simple function that checks mpeg-audio correctness of given file.
-     * Actually it checks that first 3 bytes of file is a id3v2 tag mark or
-     * that first 11 bits of file is a frame header sync mark or that 3 bytes on -128 position of file is id3v1 tag.
-     * To perform full test create an instance of Mp3Info with given file.
-     *
-     * @param string $filename File to be tested.
-     * @return boolean True if file looks that correct mpeg audio, False otherwise.
-     * @throws \Exception
-     */
-    public static function isValidAudio($filename) {
-        if (!file_exists($filename))
-            throw new Exception('File '.$filename.' is not present!');
-
-        $raw = file_get_contents($filename, false, null, 0, 3);
-        return $raw == self::TAG2_SYNC // id3v2 tag
-            || (self::FRAME_SYNC == (unpack('n*', $raw)[1] & self::FRAME_SYNC)) // mpeg header tag
-            || (
-                filesize($filename) > 128
-                && file_get_contents($filename, false, null, -128, 3) === self::TAG1_SYNC
-                )  // id3v1 tag
-        ;
-    }
-
-    /**
      * @param $frameSize
      * @param $raw
      *
@@ -1027,5 +1023,50 @@ class Mp3Info {
                 ? ($id3v2_tag === 'COMM' ? current($this->tags2[$id3v2_tag])['actual'] : $this->tags2[$id3v2_tag])
                 : $this->tags1[$tag];
         }
+    }
+
+    /**
+     * Simple function that checks mpeg-audio correctness of given file.
+     * Actually it checks that first 3 bytes of file is a id3v2 tag mark or
+     * that first 11 bits of file is a frame header sync mark or that 3 bytes on -128 position of file is id3v1 tag.
+     * To perform full test create an instance of Mp3Info with given file.
+     *
+     * @param string $filename File to be tested.
+     * @return boolean True if file looks that correct mpeg audio, False otherwise.
+     * @throws \Exception
+     */
+    public static function isValidAudio($filename) {
+        if (!file_exists($filename) && strpos($filename, '://')) {
+            throw new Exception('File ' . $filename . ' is not present!');
+        }
+
+        $filesize = file_exists($filename) ? filesize($filename) : static::getUrlContentLength($filename);
+
+        $raw = file_get_contents($filename, false, null, 0, 3);
+        return $raw === self::TAG2_SYNC // id3v2 tag
+            || (self::FRAME_SYNC === (unpack('n*', $raw)[1] & self::FRAME_SYNC)) // mpeg header tag
+            || (
+                $filesize > 128
+                && file_get_contents($filename, false, null, -128, 3) === self::TAG1_SYNC
+            )  // id3v1 tag
+            ;
+    }
+
+    /**
+     * @param string $url
+     * @return int|mixed|string
+     */
+    public static function getUrlContentLength($url) {
+        $context = stream_context_create(['http' => ['method' => 'HEAD']]);
+        $head = array_change_key_case(get_headers($url, true, $context));
+        // content-length of download (in bytes), read from Content-Length: field
+        $clen = isset($head['content-length']) ? $head['content-length'] : 0;
+
+        // cannot retrieve file size, return "-1"
+        if (!$clen) {
+            return -1;
+        }
+
+        return $clen; // return size in bytes
     }
 }
