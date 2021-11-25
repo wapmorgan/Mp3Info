@@ -1036,7 +1036,7 @@ class Mp3Info {
      * @throws \Exception
      */
     public static function isValidAudio($filename) {
-        if (!file_exists($filename) && strpos($filename, '://')) {
+        if (!file_exists($filename) && strpos($filename, '://') == false) {
             throw new Exception('File ' . $filename . ' is not present!');
         }
 
