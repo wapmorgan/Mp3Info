@@ -213,8 +213,8 @@ class Mp3Info {
             self::$_sampleRateTable = require dirname(__FILE__).'/../data/sampleRateTable.php';
 
         $this->_fileName = $filename;
-
-        if (strpos($filename, '://') !== false) {
+        $isLocal = (strpos($filename, '://') === false);
+        if (!$isLocal) {
             $this->_fileSize = static::getUrlContentLength($filename);
         } else {
             if (!file_exists($filename)) {
@@ -223,13 +223,14 @@ class Mp3Info {
             $this->_fileSize = filesize($filename);
         }
 
-        if (!static::isValidAudio($filename)) {
+        if ($isLocal and !static::isValidAudio($filename)) {
             throw new \Exception('File ' . $filename . ' is not mpeg/audio!');
         }
 
         $mode = $parseTags ? self::META | self::TAGS : self::META;
         $this->audioSize = $this->parseAudio($this->_fileName, $this->_fileSize, $mode);
     }
+    
 
     /**
      * @return bool|null
