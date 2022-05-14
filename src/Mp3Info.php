@@ -285,7 +285,7 @@ class Mp3Info {
                 array_walk($sizeBytes, function (&$value) {
                     $value = substr(str_pad(base_convert($value, 10, 2), 8, 0, STR_PAD_LEFT), 1);
                 });
-                $size = bindec(implode(null, $sizeBytes)) + 10;
+                $size = bindec(implode('', $sizeBytes)) + 10;
                 $audioSize -= ($this->_id3Size = $size);
             }
         }
@@ -396,11 +396,11 @@ class Mp3Info {
 
             // VBR frames count presence
             if (($flagsBytes[3] & 2)) {
-                $this->vbrProperties['frames'] = implode(null, unpack('N', fread($fp, 4)));
+                $this->vbrProperties['frames'] = implode('', unpack('N', fread($fp, 4)));
             }
             // VBR stream size presence
             if ($flagsBytes[3] & 4) {
-                $this->vbrProperties['bytes'] = implode(null, unpack('N', fread($fp, 4)));
+                $this->vbrProperties['bytes'] = implode('', unpack('N', fread($fp, 4)));
             }
             // VBR TOC presence
             if ($flagsBytes[3] & 1) {
@@ -408,7 +408,7 @@ class Mp3Info {
             }
             // VBR quality
             if ($flagsBytes[3] & 8) {
-                $this->vbrProperties['quality'] = implode(null, unpack('N', fread($fp, 4)));
+                $this->vbrProperties['quality'] = implode('', unpack('N', fread($fp, 4)));
             }
         }
 
