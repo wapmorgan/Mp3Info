@@ -1,6 +1,6 @@
 #!/usr/bin/php
 <?php
-use wapmorgan\Mp3Info\Mp3Info;
+use davaxi\Mp3Info\Mp3Info;
 
 $paths = [
     // as a root package or phar

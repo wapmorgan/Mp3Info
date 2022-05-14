@@ -1,10 +1,10 @@
 # Mp3Info
 The fastest PHP library to get mp3 tags&meta.
 
-[![Latest Stable Version](https://poser.pugx.org/wapmorgan/mp3info/v/stable)](https://packagist.org/packages/wapmorgan/mp3info)
-[![Total Downloads](https://poser.pugx.org/wapmorgan/mp3info/downloads)](https://packagist.org/packages/wapmorgan/mp3info)
-[![Latest Unstable Version](https://poser.pugx.org/wapmorgan/mp3info/v/unstable)](https://packagist.org/packages/wapmorgan/mp3info)
-[![License](https://poser.pugx.org/wapmorgan/mp3info/license)](https://packagist.org/packages/wapmorgan/mp3info)
+[![Latest Stable Version](https://poser.pugx.org/davaxi/mp3info/v/stable)](https://packagist.org/packages/davaxi/mp3info)
+[![Total Downloads](https://poser.pugx.org/davaxi/mp3info/downloads)](https://packagist.org/packages/davaxi/mp3info)
+[![Latest Unstable Version](https://poser.pugx.org/davaxi/mp3info/v/unstable)](https://packagist.org/packages/davaxi/mp3info)
+[![License](https://poser.pugx.org/davaxi/mp3info/license)](https://packagist.org/packages/davaxi/mp3info)
 
 This class extracts information from mpeg/mp3 audio:
 
@@ -41,7 +41,7 @@ This class extracts information from mpeg/mp3 audio:
 After creating an instance of `Mp3Info` with passing filename as the first argument to the constructor, you can retrieve data from object properties (listed below).
 
 ```php
-use wapmorgan\Mp3Info\Mp3Info;
+use davaxi\Mp3Info\Mp3Info;
 // To get basic audio information
 $audio = new Mp3Info('./audio.mp3');
 
