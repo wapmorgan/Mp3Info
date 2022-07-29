@@ -13,8 +13,5 @@
 		"php": ">=5.4.0",
 		"ext-mbstring": "*"
 	},
-	"require-dev": {
-		"wapmorgan/terminal-info": "dev-master"
-	},
 	"bin": ["bin/mp3scan"]
 }
