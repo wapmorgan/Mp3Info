@@ -118,7 +118,7 @@ class Mp3InfoConsoleRunner {
      */
     protected function adjustOutputSize()
     {
-        $terminal_width = \wapmorgan\TerminalInfo\TerminalInfo::getWidth();
+        $terminal_width = 80;
 
         foreach ($this->widths as $element => $width) {
             if ($width >= 1) {
