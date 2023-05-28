@@ -115,6 +115,12 @@ php bin/scan ./
 - `Mp3Info::isValidAudio($filename)`
     Static method that checks if file `$filename` looks like a mp3-file. Returns `true` if file looks like a mp3, otherwise false.
 
+### Settings
+You can adjust some variables to reconfigure before instantiating of object:
+
+- `Mp3Info::$headerSeekLimit` - count of bytes to search for the first mpeg header in audio. Default: `2048` (bytes).
+- `Mp3Info::$framesCountRead` - count of mpeg frames to read before compute audio duration. Default: `2` (frames). 
+
 ## Technical information
 Supporting features:
 * id3v1

@@ -97,7 +97,7 @@ class Mp3InfoConsoleRunner {
                 .':'.str_pad($time % 60, 2, 0, STR_PAD_LEFT);
         else
             return floor($time / 60)
-                .':'.str_pad($time % 60, 2, 0, STR_PAD_LEFT);
+                .':'.str_pad((int)$time % 60, 2, 0, STR_PAD_LEFT);
     }
 
     /**

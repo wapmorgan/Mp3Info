@@ -56,17 +56,17 @@ class Mp3Info {
     /**
      * @var array
      */
-    static private $_bitRateTable;
+    private static $_bitRateTable;
 
     /**
      * @var array
      */
-    static private $_sampleRateTable;
+    private static $_sampleRateTable;
 
     /**
      * @var array
      */
-    static private $_vbrOffsets = [
+    private static $_vbrOffsets = [
         self::MPEG_1 => [21, 36],
         self::MPEG_2 => [13, 21],
         self::MPEG_25 => [13, 21],
@@ -76,6 +76,8 @@ class Mp3Info {
      * @var int Limit in bytes for seeking a mpeg header in file
      */
     public static $headerSeekLimit = 2048;
+
+    public static $framesCountRead = 2;
 
     /**
      * @var int MPEG codec version (1 or 2 or 2.5 or undefined)
@@ -307,8 +309,11 @@ class Mp3Info {
             /**
              * First frame can lie. Need to fix in the future.
              * @link https://github.com/wapmorgan/Mp3Info/issues/13#issuecomment-447470813
+             * Read first N frames
              */
-            $framesCount = $this->readMpegFrame($fp);
+            for ($i = 0; $i < self::$framesCountRead; $i++) {
+                $framesCount = $this->readMpegFrame($fp);
+            }
 
             $this->_framesCount = $framesCount !== null
                 ? $framesCount
