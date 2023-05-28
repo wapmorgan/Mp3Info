@@ -235,7 +235,7 @@ class Mp3Info {
     
 
     /**
-     * @return bool|null
+     * @return bool|null|string
      */
     public function getCover()
     {
@@ -244,6 +244,9 @@ class Mp3Info {
         }
 
         $fp = fopen($this->_fileName, 'rb');
+        if ($fp === false) {
+            return false;
+        }
         fseek($fp, $this->coverProperties['offset']);
         $data = fread($fp, $this->coverProperties['size']);
         fclose($fp);
