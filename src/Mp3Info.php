@@ -687,7 +687,7 @@ class Mp3Info {
                     $raw = fread($fp, 4);
                     $data = unpack('C1encoding/A3language', $raw);
                     // read until \null character
-                    $short_description = null;
+                    $short_description = '';
                     $last_null = false;
                     $actual_text = false;
                     while (ftell($fp) < $dataEnd) {
