@@ -35,6 +35,7 @@ This class extracts information from mpeg/mp3 audio:
 4. [API](#api)
 	- Audio information
 	- Class methods
+	- Settings
 4. [Technical information](#technical-information)
 
 ## Usage
