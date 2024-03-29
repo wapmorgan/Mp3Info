@@ -385,7 +385,7 @@ class Mp3Info {
         }
 
         if (!isset($this->codecVersion) || !isset($this->layerVersion) || !isset($header_bytes[2])) {
-            throw new \Exception('Unknown codecVersion or layerVersion!');
+            throw new \Exception('Unrecognized codecVersion or layerVersion headers!');
         }
         $this->bitRate = self::$_bitRateTable[$this->codecVersion][$this->layerVersion][$header_bytes[2] >> 4];
         $this->sampleRate = self::$_sampleRateTable[$this->codecVersion][($header_bytes[2] >> 2) & 0b11];
@@ -397,6 +397,9 @@ class Mp3Info {
             case 0b11: $this->channel = self::MONO; break;
         }
 
+        if (!isset($this->channel)) {
+            throw new \Exception('Unrecognized channel header!');
+        }
         $vbr_offset = self::$_vbrOffsets[$this->codecVersion][$this->channel == self::MONO ? 0 : 1];
 
         // check for VBR
