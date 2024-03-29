@@ -384,6 +384,9 @@ class Mp3Info {
             case 0b11: $this->layerVersion = self::LAYER_1; break;
         }
 
+        if (!isset($this->codecVersion) || !isset($this->layerVersion) || !isset($header_bytes[2])) {
+            throw new \Exception('Unknown codecVersion or layerVersion!');
+        }
         $this->bitRate = self::$_bitRateTable[$this->codecVersion][$this->layerVersion][$header_bytes[2] >> 4];
         $this->sampleRate = self::$_sampleRateTable[$this->codecVersion][($header_bytes[2] >> 2) & 0b11];
 
