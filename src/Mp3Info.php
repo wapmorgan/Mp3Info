@@ -1,8 +1,14 @@
 <?php
+
 namespace wapmorgan\Mp3Info;
 
-use Exception;
-use RuntimeException;
+require __DIR__ . '/Mp3FileLocal.php';
+require __DIR__ . '/Mp3FileRemote.php';
+
+use \wapmorgan\Mp3Info\Mp3FileLocal;
+use \wapmorgan\Mp3Info\Mp3FileRemote;
+use \Exception;
+use \RuntimeException;
 
 /**
  * This class extracts information about an mpeg audio. (supported mpeg versions: MPEG-1, MPEG-2)
@@ -78,6 +84,11 @@ class Mp3Info {
     public static $headerSeekLimit = 2048;
 
     public static $framesCountRead = 2;
+
+    /**
+     * @var Mp3File File object for I/O handling
+     */
+    protected $fileObj;
 
     /**
      * @var int MPEG codec version (1 or 2 or 2.5 or undefined)
@@ -208,29 +219,21 @@ class Mp3Info {
      *
      * @throws \Exception
      */
-    public function __construct($filename, $parseTags = false) {
+    public function __construct(string $filename, bool $parseTags = false)
+    {
         if (self::$_bitRateTable === null)
             self::$_bitRateTable = require dirname(__FILE__).'/../data/bitRateTable.php';
         if (self::$_sampleRateTable === null)
             self::$_sampleRateTable = require dirname(__FILE__).'/../data/sampleRateTable.php';
 
-        $this->_fileName = $filename;
-        $isLocal = (strpos($filename, '://') === false);
-        if (!$isLocal) {
-            $this->_fileSize = static::getUrlContentLength($filename);
+        if (str_contains($filename, '://')) {
+            $this->fileObj = new Mp3FileRemote($filename);
         } else {
-            if (!file_exists($filename)) {
-                throw new \Exception('File ' . $filename . ' is not present!');
-            }
-            $this->_fileSize = filesize($filename);
-        }
-
-        if ($isLocal and !static::isValidAudio($filename)) {
-            throw new \Exception('File ' . $filename . ' is not mpeg/audio!');
+            $this->fileObj = new Mp3FileLocal($filename);
         }
 
         $mode = $parseTags ? self::META | self::TAGS : self::META;
-        $this->audioSize = $this->parseAudio($this->_fileName, $this->_fileSize, $mode);
+        $this->audioSize = $this->parseAudio($mode);
     }
     
 
@@ -248,7 +251,7 @@ class Mp3Info {
             return false;
         }
         fseek($fp, $this->coverProperties['offset']);
-        $data = fread($fp, $this->coverProperties['size']);
+        $data = $this->fileObj->getBytes($this->coverProperties['size']);
         fclose($fp);
         return $data;
     }
@@ -259,44 +262,32 @@ class Mp3Info {
      * ID3V2 TAG - provides a lot of meta data. [optional]
      * MPEG AUDIO FRAMES - contains audio data. A frame consists of a frame header and a frame data. The first frame may contain extra information about mp3 (marked with "Xing" or "Info" string). Rest of frames can contain only audio data.
      * ID3V1 TAG - provides a few of meta data. [optional]
-     * @param string $filename
-     * @param int $fileSize
      * @param int $mode
      * @return float|int
      * @throws \Exception
      */
-    private function parseAudio($filename, $fileSize, $mode) {
+    private function parseAudio($mode) {
         $time = microtime(true);
 
-        // create temp storage for media
-        if (strpos($filename, '://') !== false) {
-            $fp = fopen('php://memory', 'rwb');
-            fwrite($fp, file_get_contents($filename));
-            rewind($fp);
-        } else {
-            $fp = fopen($filename, 'rb');
-        }
-
         /** @var int Size of audio data (exclude tags size) */
-        $audioSize = $fileSize;
+        $audioSize = $this->fileObj->getFileSize();
 
         // parse tags
-        if (fread($fp, 3) == self::TAG2_SYNC) {
-            if ($mode & self::TAGS) $audioSize -= ($this->_id3Size = $this->readId3v2Body($fp));
-            else {
-                fseek($fp, 2, SEEK_CUR); // 2 bytes of tag version
-                fseek($fp, 1, SEEK_CUR); // 1 byte of tag flags
-                $sizeBytes = $this->readBytes($fp, 4);
-                array_walk($sizeBytes, function (&$value) {
-                    $value = substr(str_pad(base_convert($value, 10, 2), 8, 0, STR_PAD_LEFT), 1);
-                });
-                $size = bindec(implode($sizeBytes)) + 10;
+        if ($this->fileObj->getBytes(3) == self::TAG2_SYNC) {
+            if ($mode & self::TAGS) {
+                $audioSize -= ($this->_id3Size = $this->readId3v2Body());
+            } else {
+                $this->fileObj->seekForward(2); // 2 bytes of tag version
+                $this->fileObj->seekForward(1); // 1 byte of tag flags
+                $sizeBytes = unpack('C4', $this->fileObj->getBytes(4));
+                $size = $sizeBytes[1] << 21 | $sizeBytes[2] << 14 | $sizeBytes[3] << 7 | $sizeBytes[4];
+                $size += 10;   // add header size
                 $audioSize -= ($this->_id3Size = $size);
             }
         }
 
-        fseek($fp, $fileSize - 128);
-        if (fread($fp, 3) == self::TAG1_SYNC) {
+        $this->fileObj->seekTo($this->fileObj->getFileSize() - 128);
+        if ($this->fileObj->getBytes(3) == self::TAG1_SYNC) {
             if ($mode & self::TAGS) $audioSize -= $this->readId3v1Body($fp);
             else $audioSize -= 128;
         }
@@ -305,17 +296,17 @@ class Mp3Info {
             $this->fillTags();
         }
 
-        fseek($fp, 0);
+        $this->fileObj->seekTo(0);
         // audio meta
         if ($mode & self::META) {
-            if ($this->_id3Size !== null) fseek($fp, $this->_id3Size);
+            if ($this->_id3Size !== null) $this->fileObj->seekTo($this->_id3Size);
             /**
              * First frame can lie. Need to fix in the future.
              * @link https://github.com/wapmorgan/Mp3Info/issues/13#issuecomment-447470813
              * Read first N frames
              */
             for ($i = 0; $i < self::$framesCountRead; $i++) {
-                $framesCount = $this->readMpegFrame($fp);
+                $framesCount = $this->readMpegFrame();
             }
 
             $this->_framesCount = $framesCount !== null
@@ -338,7 +329,6 @@ class Mp3Info {
             // Calculate total number of audio samples (framesCount * sampleInFrameCount) / samplesInSecondCount
             $this->duration = ($this->_framesCount - 1) * $samples_in_second / $this->sampleRate;
         }
-        fclose($fp);
 
         $this->_parsingTime = microtime(true) - $time;
         return $audioSize;
@@ -346,48 +336,52 @@ class Mp3Info {
 
     /**
      * Read first frame information.
-     * @param resource $fp
      * @return int Number of frames (if present if first frame of VBR-file)
      * @throws \Exception
      */
-    private function readMpegFrame($fp) {
-        $header_seek_pos = ftell($fp) + self::$headerSeekLimit;
+    private function readMpegFrame() {
+        $header_seek_pos = $this->fileObj->getFilePos() + self::$headerSeekLimit;
         do {
-            $pos = ftell($fp);
-            $first_header_byte = $this->readBytes($fp, 1);
-            if ($first_header_byte[0] === 0xFF) {
-                $second_header_byte = $this->readBytes($fp, 1);
-                if ((($second_header_byte[0] >> 5) & 0b111) == 0b111) {
-                    fseek($fp, $pos);
-                    $header_bytes = $this->readBytes($fp, 4);
+            $pos = $this->fileObj->getFilePos();
+            $first_header_byte = $this->fileObj->getBytes(1);
+            if (ord($first_header_byte[0]) === 0xFF) {
+                $second_header_byte = $this->fileObj->getBytes(1);
+                if (((ord($second_header_byte[0]) >> 5) & 0b111) == 0b111) {
+                    $this->fileObj->seekTo($pos);
+                    $header_bytes = $this->fileObj->getBytes(4);
                     break;
+                } else {
+                    $this->fileObj->seekForward(-1);
                 }
+            } else {
+                $this->fileObj->seekForward(-1);
             }
-            fseek($fp, 1, SEEK_CUR);
-        } while (ftell($fp) <= $header_seek_pos);
+            $this->fileObj->seekForward(1);
+        } while ($this->fileObj->getFilePos() <= $header_seek_pos);
 
-        if (!isset($header_bytes) || $header_bytes[0] !== 0xFF || (($header_bytes[1] >> 5) & 0b111) != 0b111) {
+        if (!isset($header_bytes) || ord($header_bytes[0]) !== 0xFF || ((ord($header_bytes[1]) >> 5) & 0b111) != 0b111) {
             throw new \Exception('At '.$pos
                 .'(0x'.dechex($pos).') should be a frame header!');
         }
 
-        switch ($header_bytes[1] >> 3 & 0b11) {
+        switch (ord($header_bytes[1]) >> 3 & 0b11) {
             case 0b00: $this->codecVersion = self::MPEG_25; break;
-            case 0b01: $this->codecVersion = self::CODEC_UNDEFINED; break;
+            case 0b01: return null; break;
             case 0b10: $this->codecVersion = self::MPEG_2; break;
             case 0b11: $this->codecVersion = self::MPEG_1; break;
         }
 
-        switch ($header_bytes[1] >> 1 & 0b11) {
+        switch (ord($header_bytes[1]) >> 1 & 0b11) {
             case 0b01: $this->layerVersion = self::LAYER_3; break;
             case 0b10: $this->layerVersion = self::LAYER_2; break;
             case 0b11: $this->layerVersion = self::LAYER_1; break;
         }
 
-        $this->bitRate = self::$_bitRateTable[$this->codecVersion][$this->layerVersion][$header_bytes[2] >> 4];
-        $this->sampleRate = self::$_sampleRateTable[$this->codecVersion][($header_bytes[2] >> 2) & 0b11];
+        $this->bitRate = self::$_bitRateTable[$this->codecVersion][$this->layerVersion][ord($header_bytes[2]) >> 4];
+        $this->sampleRate = self::$_sampleRateTable[$this->codecVersion][(ord($header_bytes[2]) >> 2) & 0b11];
+        if ($this->sampleRate === false) return null;
 
-        switch ($header_bytes[3] >> 6) {
+        switch (ord($header_bytes[3]) >> 6) {
             case 0b00: $this->channel = self::STEREO; break;
             case 0b01: $this->channel = self::JOINT_STEREO; break;
             case 0b10: $this->channel = self::DUAL_MONO; break;
@@ -397,69 +391,54 @@ class Mp3Info {
         $vbr_offset = self::$_vbrOffsets[$this->codecVersion][$this->channel == self::MONO ? 0 : 1];
 
         // check for VBR
-        fseek($fp, $pos + $vbr_offset);
-        if (fread($fp, 4) == self::VBR_SYNC) {
+        $this->fileObj->seekTo($pos + $vbr_offset);
+        if ($this->fileObj->getBytes(4) == self::VBR_SYNC) {
             $this->isVbr = true;
-            $flagsBytes = $this->readBytes($fp, 4);
+            $flagsBytes = $this->fileObj->getBytes(4);
 
             // VBR frames count presence
-            if (($flagsBytes[3] & 2)) {
-                $this->vbrProperties['frames'] = implode(unpack('N', fread($fp, 4)));
+            if ((ord($flagsBytes[3]) & 2)) {
+                $this->vbrProperties['frames'] = implode(unpack('N', $this->fileObj->getBytes(4)));
             }
             // VBR stream size presence
-            if ($flagsBytes[3] & 4) {
-                $this->vbrProperties['bytes'] = implode(unpack('N', fread($fp, 4)));
+            if (ord($flagsBytes[3]) & 4) {
+                $this->vbrProperties['bytes'] = implode(unpack('N', $this->fileObj->getBytes(4)));
             }
             // VBR TOC presence
-            if ($flagsBytes[3] & 1) {
-                fseek($fp, 100, SEEK_CUR);
+            if (ord($flagsBytes[3]) & 1) {
+                $this->fileObj->seekForward(100);
             }
             // VBR quality
-            if ($flagsBytes[3] & 8) {
-                $this->vbrProperties['quality'] = implode(unpack('N', fread($fp, 4)));
+            if (ord($flagsBytes[3]) & 8) {
+                $this->vbrProperties['quality'] = implode(unpack('N', $this->fileObj->getBytes(4)));
             }
         }
 
         // go to the end of frame
         if ($this->layerVersion == self::LAYER_1) {
-            $this->_cbrFrameSize = floor((12 * $this->bitRate / $this->sampleRate + ($header_bytes[2] >> 1 & 0b1)) * 4);
+            $this->_cbrFrameSize = floor((12 * $this->bitRate / $this->sampleRate + (ord($header_bytes[2]) >> 1 & 0b1)) * 4);
         } else {
-            $this->_cbrFrameSize = floor(144 * $this->bitRate / $this->sampleRate + ($header_bytes[2] >> 1 & 0b1));
+            $this->_cbrFrameSize = floor(144 * $this->bitRate / $this->sampleRate + (ord($header_bytes[2]) >> 1 & 0b1));
         }
 
-        fseek($fp, $pos + $this->_cbrFrameSize);
+        $this->fileObj->seekTo($pos + $this->_cbrFrameSize);
 
         return isset($this->vbrProperties['frames']) ? $this->vbrProperties['frames'] : null;
-    }
-
-    /**
-     * @param $fp
-     * @param $n
-     *
-     * @return array
-     * @throws \Exception
-     */
-    private function readBytes($fp, $n) {
-        $raw = fread($fp, $n);
-        if (strlen($raw) !== $n) throw new \Exception('Unexpected end of file!');
-        $bytes = array();
-        for($i = 0; $i < $n; $i++) $bytes[$i] = ord($raw[$i]);
-        return $bytes;
     }
 
     /**
      * Reads id3v1 tag.
      * @return int Returns length of id3v1 tag.
      */
-    private function readId3v1Body($fp) {
-        $this->tags1['song'] = trim(fread($fp, 30));
-        $this->tags1['artist'] = trim(fread($fp, 30));
-        $this->tags1['album'] = trim(fread($fp, 30));
-        $this->tags1['year'] = trim(fread($fp, 4));
-        $this->tags1['comment'] = trim(fread($fp, 28));
-        fseek($fp, 1, SEEK_CUR);
-        $this->tags1['track'] = ord(fread($fp, 1));
-        $this->tags1['genre'] = ord(fread($fp, 1));
+    private function readId3v1Body() {
+        $this->tags1['song'] = trim($this->fileObj->getBytes(30));
+        $this->tags1['artist'] = trim($this->fileObj->getBytes(30));
+        $this->tags1['album'] = trim($this->fileObj->getBytes(30));
+        $this->tags1['year'] = trim($this->fileObj->getBytes(4));
+        $this->tags1['comment'] = trim($this->fileObj->getBytes(28));
+        $this->fileObj->seekForward(1);
+        $this->tags1['track'] = ord($this->fileObj->getBytes(1));
+        $this->tags1['genre'] = ord($this->fileObj->getBytes(1));
         return 128;
     }
 
@@ -512,10 +491,10 @@ class Mp3Info {
      * @return int Returns length of id3v2 tag.
      * @throws \Exception
      */
-    private function readId3v2Body($fp)
+    private function readId3v2Body()
     {
         // read the rest of the id3v2 header
-        $raw = fread($fp, 7);
+        $raw = $this->fileObj->getBytes(7);
         $data = unpack('cmajor_version/cminor_version/H*', $raw);
         $this->id3v2MajorVersion = $data['major_version'];
         $this->id3v2MinorVersion = $data['minor_version'];
@@ -562,10 +541,10 @@ class Mp3Info {
             /*throw new \Exception('NEED TO PARSE id3v2.2.0 flags!');*/
         } else if ($this->id3v2MajorVersion == 3) {
             // parse id3v2.3.0 body
-            $this->parseId3v23Body($fp, 10 + $size);
+            $this->parseId3v23Body(10 + $size);
         } else if ($this->id3v2MajorVersion == 4)  {
             // parse id3v2.4.0 body
-            $this->parseId3v24Body($fp, 10 + $size);
+            $this->parseId3v24Body(10 + $size);
         }
 
         return 10 + $size; // 10 bytes - header, rest - body
@@ -575,9 +554,9 @@ class Mp3Info {
      * Parses id3v2.3.0 tag body.
      * @todo Complete.
      */
-    protected function parseId3v23Body($fp, $lastByte) {
-        while (ftell($fp) < $lastByte) {
-            $raw = fread($fp, 10);
+    protected function parseId3v23Body($lastByte) {
+        while ($this->fileObj->getFilePos() < $lastByte) {
+            $raw = $this->fileObj->getBytes(10);
             $frame_id = substr($raw, 0, 4);
 
             if ($frame_id == str_repeat(chr(0), 4)) {
@@ -643,7 +622,7 @@ class Mp3Info {
                 case 'TSIZ':    # Size
                 case 'TSRC':    # ISRC (international standard recording code)
                 case 'TSSE':    # Software/Hardware and settings used for encoding
-                    $this->tags2[$frame_id] = $this->handleTextFrame($frame_size, fread($fp, $frame_size));
+                    $this->tags2[$frame_id] = $this->handleTextFrame($frame_size, $this->fileObj->getBytes($frame_size));
                     break;
                 ################# Text information frames
 
@@ -683,15 +662,15 @@ class Mp3Info {
                 // case 'SYLT':    # Synchronized lyric/text
                 //     break;
                 case 'COMM':    # Comments
-                    $dataEnd = ftell($fp) + $frame_size;
-                    $raw = fread($fp, 4);
+                    $dataEnd = $this->fileObj->getFilePos() + $frame_size;
+                    $raw = $this->fileObj->getBytes(4);
                     $data = unpack('C1encoding/A3language', $raw);
                     // read until \null character
                     $short_description = '';
                     $last_null = false;
                     $actual_text = false;
-                    while (ftell($fp) < $dataEnd) {
-                        $char = fgetc($fp);
+                    while ($this->fileObj->getFilePos() < $dataEnd) {
+                        $char = $this->fileObj->getBytes(1);
                         if ($char == "\00" && $actual_text === false) {
                             if ($data['encoding'] == 0x1) { # two null-bytes for utf-16
                                 if ($last_null)
@@ -721,20 +700,20 @@ class Mp3Info {
                 //     break;
                  case 'APIC':    # Attached picture
                      $this->hasCover = true;
-                     $last_byte = ftell($fp) + $frame_size;
-                     $this->coverProperties = ['text_encoding' => ord(fread($fp, 1))];
+                     $last_byte = $this->fileObj->getFilePos() + $frame_size;
+                     $this->coverProperties = ['text_encoding' => ord($this->fileObj->getBytes(1))];
 //                     fseek($fp, $frame_size - 4, SEEK_CUR);
-                     $this->coverProperties['mime_type'] = $this->readTextUntilNull($fp, $last_byte);
-                     $this->coverProperties['picture_type'] = ord(fread($fp, 1));
-                     $this->coverProperties['description'] = $this->readTextUntilNull($fp, $last_byte);
-                     $this->coverProperties['offset'] = ftell($fp);
-                     $this->coverProperties['size'] = $last_byte - ftell($fp);
-                     fseek($fp, $last_byte);
+                     $this->coverProperties['mime_type'] = $this->readTextUntilNull($last_byte);
+                     $this->coverProperties['picture_type'] = ord($this->fileObj->getBytes(1));
+                     $this->coverProperties['description'] = $this->readTextUntilNull($last_byte);
+                     $this->coverProperties['offset'] = $this->fileObj->getFilePos();
+                     $this->coverProperties['size'] = $last_byte - $this->fileObj->getFilePos();
+                     $this->fileObj->seekTo($last_byte);
                      break;
                 // case 'GEOB':    # General encapsulated object
                 //     break;
                 case 'PCNT':    # Play counter
-                    $data = unpack('L', fread($fp, $frame_size));
+                    $data = unpack('L', $this->fileObj->getBytes($frame_size));
                     $this->tags2[$frame_id] = $data[1];
                     break;
                 // case 'POPM':    # Popularimeter
@@ -760,7 +739,7 @@ class Mp3Info {
                 // case 'PRIV':    # Private frame
                 //     break;
                 default:
-                    fseek($fp, $frame_size, SEEK_CUR);
+                    $this->fileObj->seekForward($frame_size);
                     break;
             }
         }
@@ -771,14 +750,14 @@ class Mp3Info {
      * @param $fp
      * @param $lastByte
      */
-    protected function parseId3v24Body($fp, $lastByte)
+    protected function parseId3v24Body($lastByte)
     {
-        while (ftell($fp) < $lastByte) {
-            $raw = fread($fp, 10);
+        while ($this->fileObj->getFilePos() < $lastByte) {
+            $raw = $this->fileObj->getBytes(10);
             $frame_id = substr($raw, 0, 4);
 
             if ($frame_id == str_repeat(chr(0), 4)) {
-                fseek($fp, $lastByte);
+                $this->fileObj->seekTo($lastByte);
                 break;
             }
 
@@ -842,7 +821,7 @@ class Mp3Info {
                 case 'TSIZ':    # Size
                 case 'TSRC':    # ISRC (international standard recording code)
                 case 'TSSE':    # Software/Hardware and settings used for encoding
-                    $this->tags2[$frame_id] = $this->handleTextFrame($frame_size, fread($fp, $frame_size));
+                    $this->tags2[$frame_id] = $this->handleTextFrame($frame_size, $this->fileObj->getBytes($frame_size));
                     break;
 
                 ################# Text information frames
@@ -883,14 +862,14 @@ class Mp3Info {
                 // case 'SYLT':    # Synchronized lyric/text
                 //     break;
                 case 'COMM':    # Comments
-                    $dataEnd = ftell($fp) + $frame_size;
-                    $raw = fread($fp, 4);
+                    $dataEnd = $this->fileObj->getFilePos() + $frame_size;
+                    $raw = $this->fileObj->getBytes(4);
                     $data = unpack('C1encoding/A3language', $raw);
                     // read until \null character
                     $short_description = null;
                     $last_null = false;
                     $actual_text = false;
-                    while (ftell($fp) < $dataEnd) {
+                    while ($this->fileObj->getFilePos() < $dataEnd) {
                         $char = fgetc($fp);
                         if ($char == "\00" && $actual_text === false) {
                             if ($data['encoding'] == 0x1) { # two null-bytes for utf-16
@@ -921,20 +900,20 @@ class Mp3Info {
                 //     break;
                 case 'APIC':    # Attached picture
                     $this->hasCover = true;
-                    $last_byte = ftell($fp) + $frame_size;
-                    $this->coverProperties = ['text_encoding' => ord(fread($fp, 1))];
-//                     fseek($fp, $frame_size - 4, SEEK_CUR);
+                    $last_byte = $this->fileObj->getFilePos() + $frame_size;
+                    $this->coverProperties = ['text_encoding' => ord($this->fileObj->getBytes(1))];
+//                     $this->fileObj->seekForward($frame_size - 4);
                     $this->coverProperties['mime_type'] = $this->readTextUntilNull($fp, $last_byte);
-                    $this->coverProperties['picture_type'] = ord(fread($fp, 1));
+                    $this->coverProperties['picture_type'] = ord($this->fileObj->getBytes(1));
                     $this->coverProperties['description'] = $this->readTextUntilNull($fp, $last_byte);
-                    $this->coverProperties['offset'] = ftell($fp);
-                    $this->coverProperties['size'] = $last_byte - ftell($fp);
-                    fseek($fp, $last_byte);
+                    $this->coverProperties['offset'] = $this->fileObj->getFilePos();
+                    $this->coverProperties['size'] = $last_byte - $this->fileObj->getFilePos();
+                    $this->fileObj->seekTo($last_byte);
                     break;
                 // case 'GEOB':    # General encapsulated object
                 //     break;
                 case 'PCNT':    # Play counter
-                    $data = unpack('L', fread($fp, $frame_size));
+                    $data = unpack('L', $this->fileObj->getBytes($frame_size));
                     $this->tags2[$frame_id] = $data[1];
                     break;
                 // case 'POPM':    # Popularimeter
@@ -960,7 +939,7 @@ class Mp3Info {
                 // case 'PRIV':    # Private frame
                 //     break;
                 default:
-                    fseek($fp, $frame_size, SEEK_CUR);
+                    $this->fileObj->seekForward($frame_size);
                     break;
             }
         }
@@ -998,11 +977,11 @@ class Mp3Info {
      * @param int $dataEnd
      * @return string|null
      */
-    private function readTextUntilNull($fp, $dataEnd)
+    private function readTextUntilNull($dataEnd)
     {
         $text = null;
-        while (ftell($fp) < $dataEnd) {
-            $char = fgetc($fp);
+        while ($this->fileObj->getFilePos() < $dataEnd) {
+            $char = $this->fileObj->getBytes(1);
             if ($char === "\00") {
                 return $text;
             }
@@ -1059,23 +1038,5 @@ class Mp3Info {
                 && file_get_contents($filename, false, null, -128, 3) === self::TAG1_SYNC
             )  // id3v1 tag
             ;
-    }
-
-    /**
-     * @param string $url
-     * @return int|mixed|string
-     */
-    public static function getUrlContentLength($url) {
-        $context = stream_context_create(['http' => ['method' => 'HEAD']]);
-        $head = array_change_key_case(get_headers($url, true, $context));
-        // content-length of download (in bytes), read from Content-Length: field
-        $clen = isset($head['content-length']) ? $head['content-length'] : 0;
-
-        // cannot retrieve file size, return "-1"
-        if (!$clen) {
-            return -1;
-        }
-
-        return $clen; // return size in bytes
     }
 }
