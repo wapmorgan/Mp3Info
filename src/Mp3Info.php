@@ -246,13 +246,10 @@ class Mp3Info {
             return null;
         }
 
-        $fp = fopen($this->_fileName, 'rb');
-        if ($fp === false) {
-            return false;
-        }
-        fseek($fp, $this->coverProperties['offset']);
+        $curPos = $this->fileObj->getFilePos();
+        $this->fileObj->seekTo($this->coverProperties['offset']);
         $data = $this->fileObj->getBytes($this->coverProperties['size']);
-        fclose($fp);
+        $this->fileObj->seekTo($curPos);
         return $data;
     }
 
