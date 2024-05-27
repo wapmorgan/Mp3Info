@@ -492,11 +492,10 @@ class Mp3Info {
     {
         // read the rest of the id3v2 header
         $raw = $this->fileObj->getBytes(7);
-        $data = unpack('cmajor_version/cminor_version/H*', $raw);
+        $data = unpack('Cmajor_version/Cminor_version/Cflags/C4size', $raw);
         $this->id3v2MajorVersion = $data['major_version'];
         $this->id3v2MinorVersion = $data['minor_version'];
-        $data = str_pad(base_convert($data[1], 16, 2), 40, 0, STR_PAD_LEFT);
-        $flags = substr($data, 0, 8);
+        $flags = decbin($data['flags']);
         if ($this->id3v2MajorVersion == 2) { // parse id3v2.2.0 header flags
             $this->id3v2Flags = array(
                 'unsynchronisation' => (bool)substr($flags, 0, 1),
@@ -522,24 +521,15 @@ class Mp3Info {
             if ($this->id3v2Flags['footer_present'])
                 throw new \Exception('NEED TO PARSE id3v2.4 FOOTER!');
         }
-        $size = substr($data, 8, 32);
-
-        // some fucking shit
-        // getting only 7 of 8 bits of size bytes
-        $sizes = str_split($size, 8);
-        array_walk($sizes, function (&$value) {
-            $value = substr($value, 1);
-        });
-        $size = implode($sizes);
-        $size = bindec($size);
+        $size = $data['size1'] << 21 | $data['size2'] << 14 | $data['size3'] << 7 | $data['size4'];
 
         if ($this->id3v2MajorVersion == 2) {
             // parse id3v2.2.0 body
             /*throw new \Exception('NEED TO PARSE id3v2.2.0 flags!');*/
-        } else if ($this->id3v2MajorVersion == 3) {
+        } elseif ($this->id3v2MajorVersion == 3) {
             // parse id3v2.3.0 body
             $this->parseId3v23Body(10 + $size);
-        } else if ($this->id3v2MajorVersion == 4)  {
+        } elseif ($this->id3v2MajorVersion == 4) {
             // parse id3v2.4.0 body
             $this->parseId3v24Body(10 + $size);
         }
@@ -557,7 +547,7 @@ class Mp3Info {
             $frame_id = substr($raw, 0, 4);
 
             if ($frame_id == str_repeat(chr(0), 4)) {
-                fseek($fp, $lastByte);
+                $this->fileObj->seekTo($lastByte);
                 break;
             }
 
@@ -697,15 +687,15 @@ class Mp3Info {
                 //     break;
                  case 'APIC':    # Attached picture
                      $this->hasCover = true;
-                     $last_byte = $this->fileObj->getFilePos() + $frame_size;
+                     $dataEnd = $this->fileObj->getFilePos() + $frame_size;
                      $this->coverProperties = ['text_encoding' => ord($this->fileObj->getBytes(1))];
 //                     fseek($fp, $frame_size - 4, SEEK_CUR);
-                     $this->coverProperties['mime_type'] = $this->readTextUntilNull($last_byte);
+                     $this->coverProperties['mime_type'] = $this->readTextUntilNull($dataEnd);
                      $this->coverProperties['picture_type'] = ord($this->fileObj->getBytes(1));
-                     $this->coverProperties['description'] = $this->readTextUntilNull($last_byte);
+                     $this->coverProperties['description'] = $this->readTextUntilNull($dataEnd);
                      $this->coverProperties['offset'] = $this->fileObj->getFilePos();
-                     $this->coverProperties['size'] = $last_byte - $this->fileObj->getFilePos();
-                     $this->fileObj->seekTo($last_byte);
+                     $this->coverProperties['size'] = $dataEnd - $this->fileObj->getFilePos();
+                     $this->fileObj->seekTo($dataEnd);
                      break;
                 // case 'GEOB':    # General encapsulated object
                 //     break;
@@ -744,7 +734,7 @@ class Mp3Info {
 
     /**
      * Parses id3v2.4.0 tag body.
-     * @param $fp
+     *
      * @param $lastByte
      */
     protected function parseId3v24Body($lastByte)
@@ -758,10 +748,12 @@ class Mp3Info {
                 break;
             }
 
-            $data = unpack('Nframe_size/H2flags', substr($raw, 4));
-            $frame_size = $data['frame_size'];
+            $data = unpack('C4frame_size/H2flags', substr($raw, 4));
+            $frame_size = $data['frame_size1'] << 21 | $data['frame_size2'] << 14 | $data['frame_size3'] << 7 | $data['frame_size4'];
+
             $flags = base_convert($data['flags'], 16, 2);
             $this->id3v2TagsFlags[$frame_id] = array(
+                'frame_size' => $frame_size,
                 'flags' => array(
                     'tag_alter_preservation' => (bool)substr($flags, 1, 1),
                     'file_alter_preservation' => (bool)substr($flags, 2, 1),
@@ -790,6 +782,7 @@ class Mp3Info {
                 case 'TCOM':    # Composer
                 case 'TCOP':    # Copyright message
                 case 'TDAT':    # Date
+                case 'TDRC':    # Recording time
                 case 'TDLY':    # Playlist delay
                 case 'TENC':    # Encoded by
                 case 'TEXT':    # Lyricist/Text writer
@@ -870,15 +863,16 @@ class Mp3Info {
                         $char = fgetc($fp);
                         if ($char == "\00" && $actual_text === false) {
                             if ($data['encoding'] == 0x1) { # two null-bytes for utf-16
-                                if ($last_null)
+                                if ($last_null) {
                                     $actual_text = null;
-                                else
+                                } else {
                                     $last_null = true;
-                            } else # no condition for iso-8859-1
+                                }
+                            } else { # no condition for iso-8859-1
                                 $actual_text = null;
-
+                            }
                         }
-                        else if ($actual_text !== false) $actual_text .= $char;
+                        elseif ($actual_text !== false) $actual_text .= $char;
                         else $short_description .= $char;
                     }
                     if ($actual_text === false) $actual_text = $short_description;
@@ -897,15 +891,15 @@ class Mp3Info {
                 //     break;
                 case 'APIC':    # Attached picture
                     $this->hasCover = true;
-                    $last_byte = $this->fileObj->getFilePos() + $frame_size;
+                    $dataEnd = $this->fileObj->getFilePos() + $frame_size;
                     $this->coverProperties = ['text_encoding' => ord($this->fileObj->getBytes(1))];
 //                     $this->fileObj->seekForward($frame_size - 4);
-                    $this->coverProperties['mime_type'] = $this->readTextUntilNull($fp, $last_byte);
+                    $this->coverProperties['mime_type'] = $this->readTextUntilNull($dataEnd);
                     $this->coverProperties['picture_type'] = ord($this->fileObj->getBytes(1));
-                    $this->coverProperties['description'] = $this->readTextUntilNull($fp, $last_byte);
+                    $this->coverProperties['description'] = $this->readTextUntilNull($dataEnd);
                     $this->coverProperties['offset'] = $this->fileObj->getFilePos();
-                    $this->coverProperties['size'] = $last_byte - $this->fileObj->getFilePos();
-                    $this->fileObj->seekTo($last_byte);
+                    $this->coverProperties['size'] = $dataEnd - $this->fileObj->getFilePos();
+                    $this->fileObj->seekTo($dataEnd);
                     break;
                 // case 'GEOB':    # General encapsulated object
                 //     break;
