@@ -372,12 +372,13 @@ class Mp3Info
 
         switch (ord($headerBytes[1]) >> 3 & 0b11) {
             case 0b00: $this->codecVersion = self::MPEG_25; break;
-            case 0b01: return null; break;
+            case 0b01: echo 'INVALID CODEC VERSION'; return null; break;
             case 0b10: $this->codecVersion = self::MPEG_2; break;
             case 0b11: $this->codecVersion = self::MPEG_1; break;
         }
 
         switch (ord($headerBytes[1]) >> 1 & 0b11) {
+            case 0b00: echo 'INVALID LAYER VERSION'; return null; break;
             case 0b01: $this->layerVersion = self::LAYER_3; break;
             case 0b10: $this->layerVersion = self::LAYER_2; break;
             case 0b11: $this->layerVersion = self::LAYER_1; break;
