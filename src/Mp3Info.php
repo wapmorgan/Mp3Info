@@ -254,6 +254,13 @@ class Mp3Info
         return $data;
     }
 
+    protected function getSyncsafeSize(string $rawBytes): int
+    {
+        $sizeBytes = unpack('C4', $rawBytes);
+        $size = $sizeBytes[1] << 21 | $sizeBytes[2] << 14 | $sizeBytes[3] << 7 | $sizeBytes[4];
+        return $size;
+    }
+
     /**
      * Reads audio file in binary mode.
      * mpeg audio file structure:
@@ -278,8 +285,7 @@ class Mp3Info
             } else {
                 $this->fileObj->seekForward(2); // 2 bytes of tag version
                 $this->fileObj->seekForward(1); // 1 byte of tag flags
-                $sizeBytes = unpack('C4', $this->fileObj->getBytes(4));
-                $size = $sizeBytes[1] << 21 | $sizeBytes[2] << 14 | $sizeBytes[3] << 7 | $sizeBytes[4];
+                $size = $this->getSyncsafeSize($this->fileObj->getBytes(4));
                 $size += 10;   // add header size
                 $audioSize -= ($this->_id3Size = $size);
             }
@@ -745,17 +751,16 @@ class Mp3Info
     protected function parseId3v24Body($lastByte)
     {
         while ($this->fileObj->getFilePos() < $lastByte) {
-            $raw = $this->fileObj->getBytes(10);
-            $frame_id = substr($raw, 0, 4);
+            $frame_id = $this->fileObj->getBytes(4);
 
             if ($frame_id == str_repeat(chr(0), 4)) {
                 $this->fileObj->seekTo($lastByte);
                 break;
             }
 
-            $data = unpack('C4frame_size/H2flags', substr($raw, 4));
-            $frame_size = $data['frame_size1'] << 21 | $data['frame_size2'] << 14 | $data['frame_size3'] << 7 | $data['frame_size4'];
+            $frame_size = $this->getSyncsafeSize($this->fileObj->getBytes(4));
 
+            $data = unpack('H2flags', $this->fileObj->getBytes(2));
             $flags = base_convert($data['flags'], 16, 2);
             $this->id3v2TagsFlags[$frame_id] = array(
                 'frame_size' => $frame_size,
