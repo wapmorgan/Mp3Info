@@ -444,9 +444,15 @@ class Mp3Info
         $this->tags1['artist'] = trim($this->fileObj->getBytes(30));
         $this->tags1['album'] = trim($this->fileObj->getBytes(30));
         $this->tags1['year'] = trim($this->fileObj->getBytes(4));
-        $this->tags1['comment'] = trim($this->fileObj->getBytes(28));
-        $this->fileObj->seekForward(1);
-        $this->tags1['track'] = ord($this->fileObj->getBytes(1));
+        $comment = $this->fileObj->getBytes(30);
+        if ($comment[28] == "\x00" && $comment[29] != "\x00") {
+            // id3v1.1 - last Byte of comment is trackNo
+            $this->tags1['track'] = ord($comment[29]);
+            $this->tags1['comment'] = trim(substr($comment, 0, 28));
+        } else {
+            // id3v1.0
+            $this->tags1['comment'] = trim($comment);
+        }
         $this->tags1['genre'] = ord($this->fileObj->getBytes(1));
         return 128;
     }
