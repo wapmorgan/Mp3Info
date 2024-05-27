@@ -229,11 +229,13 @@ class Mp3Info
         if (self::$_sampleRateTable === null)
             self::$_sampleRateTable = require __DIR__.'/../data/sampleRateTable.php';
 
+        $this->_fileName = $filename;
         if (str_contains($filename, '://')) {
             $this->fileObj = new Mp3FileRemote($filename);
         } else {
             $this->fileObj = new Mp3FileLocal($filename);
         }
+        $this->_fileSize = $this->fileObj->getFileSize();
 
         $mode = $parseTags ? self::META | self::TAGS : self::META;
         $this->audioSize = $this->parseAudio($mode);
