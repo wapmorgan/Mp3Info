@@ -581,6 +581,7 @@ class Mp3Info
             $frame_size = $data['frame_size'];
             $flags = base_convert($data['flags'], 16, 2);
             $this->id3v2TagsFlags[$frame_id] = array(
+                'payload_size' => $frame_size,
                 'flags' => array(
                     'tag_alter_preservation' => (bool)substr($flags, 0, 1),
                     'file_alter_preservation' => (bool)substr($flags, 1, 1),
@@ -778,7 +779,7 @@ class Mp3Info
             $data = unpack('H2flags', $this->fileObj->getBytes(2));
             $flags = base_convert($data['flags'], 16, 2);
             $this->id3v2TagsFlags[$frame_id] = array(
-                'frame_size' => $frame_size,
+                'payload_size' => $frame_size,
                 'flags' => array(
                     'tag_alter_preservation' => (bool)substr($flags, 1, 1),
                     'file_alter_preservation' => (bool)substr($flags, 2, 1),
