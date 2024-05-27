@@ -223,9 +223,9 @@ class Mp3Info
     public function __construct(string $filename, bool $parseTags = false)
     {
         if (self::$_bitRateTable === null)
-            self::$_bitRateTable = require dirname(__FILE__).'/../data/bitRateTable.php';
+            self::$_bitRateTable = require __DIR__.'/../data/bitRateTable.php';
         if (self::$_sampleRateTable === null)
-            self::$_sampleRateTable = require dirname(__FILE__).'/../data/sampleRateTable.php';
+            self::$_sampleRateTable = require __DIR__.'/../data/sampleRateTable.php';
 
         if (str_contains($filename, '://')) {
             $this->fileObj = new Mp3FileRemote($filename);
@@ -264,7 +264,8 @@ class Mp3Info
      * @return float|int
      * @throws \Exception
      */
-    private function parseAudio($mode) {
+    private function parseAudio($mode)
+    {
         $time = microtime(true);
 
         /** @var int Size of audio data (exclude tags size) */
@@ -286,7 +287,7 @@ class Mp3Info
 
         $this->fileObj->seekTo($this->fileObj->getFileSize() - 128);
         if ($this->fileObj->getBytes(3) == self::TAG1_SYNC) {
-            if ($mode & self::TAGS) $audioSize -= $this->readId3v1Body($fp);
+            if ($mode & self::TAGS) $audioSize -= $this->readId3v1Body();
             else $audioSize -= 128;
         }
 
@@ -337,7 +338,8 @@ class Mp3Info
      * @return int Number of frames (if present if first frame of VBR-file)
      * @throws \Exception
      */
-    private function readMpegFrame() {
+    private function readMpegFrame()
+    {
         $header_seek_pos = $this->fileObj->getFilePos() + self::$headerSeekLimit;
         do {
             $pos = $this->fileObj->getFilePos();
@@ -428,7 +430,8 @@ class Mp3Info
      * Reads id3v1 tag.
      * @return int Returns length of id3v1 tag.
      */
-    private function readId3v1Body() {
+    private function readId3v1Body()
+    {
         $this->tags1['song'] = trim($this->fileObj->getBytes(30));
         $this->tags1['artist'] = trim($this->fileObj->getBytes(30));
         $this->tags1['album'] = trim($this->fileObj->getBytes(30));
@@ -542,7 +545,8 @@ class Mp3Info
      * Parses id3v2.3.0 tag body.
      * @todo Complete.
      */
-    protected function parseId3v23Body($lastByte) {
+    protected function parseId3v23Body($lastByte)
+    {
         while ($this->fileObj->getFilePos() < $lastByte) {
             $raw = $this->fileObj->getBytes(10);
             $frame_id = substr($raw, 0, 4);
@@ -1049,7 +1053,8 @@ class Mp3Info
      * @return boolean True if file looks that correct mpeg audio, False otherwise.
      * @throws \Exception
      */
-    public static function isValidAudio($filename) {
+    public static function isValidAudio($filename)
+    {
         if (str_contains($filename, '://')) {
             $fileObj = new Mp3FileRemote($filename);
         } else {
