@@ -511,13 +511,12 @@ class Mp3Info
         $this->id3v2MajorVersion = $data['version'];
         $this->id3v2MinorVersion = $data['revision'];
 
-        $flags = str_pad(decbin($data['flags']), 8, '0', STR_PAD_LEFT);
         $this->id3v2Flags = array();
 
         if ($this->id3v2Version >= 2) {
             // parse id3v2.2.0 header flags
-            $this->id3v2Flags['unsynchronisation'] = (bool)substr($flags, 0, 1);
-            $this->id3v2Flags['compression'] = (bool)substr($flags, 1, 1);
+            $this->id3v2Flags['unsynchronisation'] = ($data['flags'] & 128 == 128);
+            $this->id3v2Flags['compression'] = ($data['flags'] & 64 == 64);
         }
         
         if ($this->id3v2Version >= 3) {
@@ -525,7 +524,7 @@ class Mp3Info
             $this->id3v2Flags['extended_header'] = &$this->id3v2Flags['compression'];
             unset($this->id3v2Flags['compression']);
             // parse additional id3v2.3.0 header flags
-            $this->id3v2Flags['experimental_indicator'] = (bool)substr($flags, 2, 1);
+            $this->id3v2Flags['experimental_indicator'] = ($data['flags'] & 32 == 32);
 
             if ($this->id3v2Flags['extended_header']) {
                 throw new Exception('NEED TO PARSE EXTENDED HEADER!');
@@ -534,10 +533,12 @@ class Mp3Info
 
         if ($this->id3v2Version >= 4) {
             // parse additional id3v2.4.0 header flags
-            $this->id3v2Flags['footer_present'] = (bool)substr($flags, 3, 1);
+            $this->id3v2Flags['footer_present'] = ($data['flags'] & 16 == 16);
 
             if ($this->id3v2Flags['footer_present']) {
-                throw new Exception('NEED TO PARSE id3v2.4 FOOTER!');
+                // footer is a copy of header - so can be ignored
+                // (10 Bytes not included in $size)
+                //throw new Exception('NEED TO PARSE id3v2.4 FOOTER!');
             }
         }
 
