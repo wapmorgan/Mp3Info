@@ -437,9 +437,11 @@ class Mp3Info
 
     /**
      * Reads id3v1 tag.
+     *
+     * @link https://id3.org/ID3v1
      * @return int Returns length of id3v1 tag.
      */
-    private function readId3v1Body()
+    private function readId3v1Body(): int
     {
         $this->tags1['song'] = trim($this->fileObj->getBytes(30));
         $this->tags1['artist'] = trim($this->fileObj->getBytes(30));
@@ -454,7 +456,7 @@ class Mp3Info
             // id3v1.0
             $this->tags1['comment'] = trim($comment);
         }
-        $this->tags1['genre'] = ord($this->fileObj->getBytes(1));
+        $this->tags1['genre'] = '(' . ord($this->fileObj->getBytes(1)) . ')';
         return 128;
     }
 
