@@ -366,7 +366,7 @@ class Mp3Info
             }
         } while ($this->fileObj->getFilePos() <= $headerSeekMax);
 
-        if (!$pos) {
+        if ($pos === false) {
             throw new Exception('No Mpeg frame header found up until pos ' . $headerSeekMax . '(0x' . dechex($headerSeekMax).')!');
         }
 
