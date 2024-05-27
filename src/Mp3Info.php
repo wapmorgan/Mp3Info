@@ -297,8 +297,11 @@ class Mp3Info
 
         $this->fileObj->seekTo($this->fileObj->getFileSize() - 128);
         if ($this->fileObj->getBytes(3) == self::TAG1_SYNC) {
-            if ($mode & self::TAGS) $audioSize -= $this->readId3v1Body();
-            else $audioSize -= 128;
+            if ($mode & self::TAGS) {
+                $audioSize -= $this->readId3v1Body();
+            } else {
+                $audioSize -= 128;
+            }
         }
 
         if ($mode & self::TAGS) {
@@ -433,7 +436,7 @@ class Mp3Info
 
         $this->fileObj->seekTo($pos + $this->_cbrFrameSize);
 
-        return isset($this->vbrProperties['frames']) ? $this->vbrProperties['frames'] : null;
+        return $this->vbrProperties['frames'] ?? null;
     }
 
     /**
@@ -965,7 +968,7 @@ class Mp3Info
      *
      * @return string
      */
-    private function _getUtf8Text(int $encoding, string|null $rawText): string
+    private function _getUtf8Text(int $encoding, ?string $rawText): string
     {
         if (is_null($rawText)) {
             $rawText = '';
@@ -1070,7 +1073,7 @@ class Mp3Info
             // id3v2 tag
             return true;
         }
-        if (self::FRAME_SYNC === (unpack('n*', $raw)[1] & self::FRAME_SYNC)) {
+        if (unpack('n', $raw)[1] & self::FRAME_SYNC === self::FRAME_SYNC) {
             // mpeg header tag
             return true;
         }
