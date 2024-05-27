@@ -1021,19 +1021,33 @@ class Mp3Info {
      * @throws \Exception
      */
     public static function isValidAudio($filename) {
-        if (!file_exists($filename) && strpos($filename, '://') == false) {
-            throw new Exception('File ' . $filename . ' is not present!');
+        if (str_contains($filename, '://')) {
+            $fileObj = new Mp3FileRemote($filename);
+        } else {
+            if (!file_exists($filename)) {
+                throw new Exception('File ' . $filename . ' is not present!');
+            }
+            $fileObj = new Mp3FileLocal($filename);
         }
 
-        $filesize = file_exists($filename) ? filesize($filename) : static::getUrlContentLength($filename);
+        $filesize = $fileObj->getFileSize();
 
-        $raw = file_get_contents($filename, false, null, 0, 3);
-        return $raw === self::TAG2_SYNC // id3v2 tag
-            || (self::FRAME_SYNC === (unpack('n*', $raw)[1] & self::FRAME_SYNC)) // mpeg header tag
-            || (
-                $filesize > 128
-                && file_get_contents($filename, false, null, -128, 3) === self::TAG1_SYNC
-            )  // id3v1 tag
-            ;
+        $raw = $fileObj->getBytes(3);
+        if ($raw === self::TAG2_SYNC) {
+            // id3v2 tag
+            return true;
+        }
+        if (self::FRAME_SYNC === (unpack('n*', $raw)[1] & self::FRAME_SYNC)) {
+            // mpeg header tag
+            return true;
+        }
+        if ($filesize > 128) {
+            $fileObj->seekTo($filesize - 128);
+            if ($fileObj->getBytes(3) === self::TAG1_SYNC) {
+                // id3v1 tag
+                return true;
+            }
+        }
+        return false;
     }
 }
