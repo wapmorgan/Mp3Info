@@ -29,7 +29,8 @@ use \RuntimeException;
  * * {@link https://multimedia.cx/mp3extensions.txt Descripion of VBR header "Xing"}
  * * {@link http://gabriel.mp3-tech.org/mp3infotag.html Xing, Info and Lame tags specifications}
  */
-class Mp3Info {
+class Mp3Info
+{
     const TAG1_SYNC = 'TAG';
     const TAG2_SYNC = 'ID3';
     const VBR_SYNC = 'Xing';
@@ -774,7 +775,6 @@ class Mp3Info {
                 case 'TALB':    # Album/Movie/Show title
                 case 'TCON':    # Content type
                 case 'TYER':    # Year
-                case 'TXXX':    # User defined text information frame
                 case 'TRCK':    # Track number/Position in set
                 case 'TIT2':    # Title/songname/content description
                 case 'TPE1':    # Lead performer(s)/Soloist(s)
@@ -812,6 +812,24 @@ class Mp3Info {
                 case 'TSRC':    # ISRC (international standard recording code)
                 case 'TSSE':    # Software/Hardware and settings used for encoding
                     $this->tags2[$frame_id] = $this->handleTextFrame($frame_size, $this->fileObj->getBytes($frame_size));
+                    break;
+
+                case 'TXXX':    # User defined text information frame
+                    $dataEnd = $this->fileObj->getFilePos() + $frame_size;
+                    $encoding = ord($this->fileObj->getBytes(1));
+                    $description_raw = $this->readTextUntilNull($dataEnd);
+                    $description = $this->_getUtf8Text($encoding, $description_raw);
+                    $value = $this->fileObj->getBytes($dataEnd - $this->fileObj->getFilePos());
+                    $tagName = $frame_id . ':' . $description;
+                    if (key_exists($tagName, $this->tags2)) {
+                        // this should never happen! TXXX-description must be unique.
+                        if (!is_array($this->tags2[$tagName])) {
+                            $this->tags2[$tagName] = array($this->tags2[$tagName]);
+                        }
+                        $this->tags2[$tagName][] = $value;
+                    } else {
+                        $this->tags2[$tagName] = $value;
+                    }
                     break;
 
                 ################# Text information frames
@@ -937,6 +955,38 @@ class Mp3Info {
     }
 
     /**
+     * Converts text encoding according to ID3 indicator
+     *
+     * @param int    $encoding Encoding ID from ID3 frame
+     * @param string $rawText  Raw text from ID3 frame
+     *
+     * @return string
+     */
+    private function _getUtf8Text(int $encoding, string|null $rawText): string
+    {
+        if (is_null($rawText)) {
+            $rawText = '';
+        }
+        
+        switch ($encoding) {
+            case 0x00:   // ISO-8859-1
+                return mb_convert_encoding($rawText, 'utf-8', 'iso-8859-1');
+
+            case 0x01:   // UTF-16 with BOM
+                return mb_convert_encoding($rawText . "\00", 'utf-8', 'utf-16');
+
+            // Following is for id3v2.4.x only
+            case 0x02:   // UTF-16 without BOM
+                return mb_convert_encoding($rawText . "\00", 'utf-8', 'utf-16');
+            case 0x03:   // UTF-8
+                return $rawText;
+
+            default:
+                throw new RuntimeException('Unknown text encoding type: ' . $encoding);
+        }
+    }
+
+    /**
      * @param $frameSize
      * @param $raw
      *
@@ -945,22 +995,7 @@ class Mp3Info {
     private function handleTextFrame($frameSize, $raw)
     {
         $data = unpack('C1encoding/A' . ($frameSize - 1) . 'information', $raw);
-
-        switch($data['encoding']) {
-            case 0x00: # ISO-8859-1
-                return mb_convert_encoding($data['information'], 'utf-8', 'iso-8859-1');
-            case 0x01: # utf-16 with BOM
-                return mb_convert_encoding($data['information'] . "\00", 'utf-8', 'utf-16');
-
-            # Following is for id3v2.4.x only
-            case 0x02: # utf-16 without BOM
-                return mb_convert_encoding($data['information'] . "\00", 'utf-8', 'utf-16');
-            case 0x03: # utf-8
-                return $data['information'];
-
-            default:
-                throw new RuntimeException('Unknown text encoding type: '.$data['encoding']);
-        }
+        return $this->_getUtf8Text($data['encoding'], $data['information']);
     }
 
     /**
