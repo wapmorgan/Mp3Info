@@ -360,7 +360,7 @@ class Mp3Info
             $headerBytes .= $this->fileObj->getBytes(1);   // load next Byte
             $headerBytes = substr($headerBytes, -4);   // limit to 4 Bytes
 
-            if (unpack('n', $headerBytes)[1] & self::FRAME_SYNC === self::FRAME_SYNC) {
+            if ((unpack('n', $headerBytes)[1] & self::FRAME_SYNC) === self::FRAME_SYNC) {
                 $pos = $this->fileObj->getFilePos() - 4;
                 break;
             }
@@ -1070,7 +1070,7 @@ class Mp3Info
             // id3v2 tag
             return true;
         }
-        if (unpack('n', $raw)[1] & self::FRAME_SYNC === self::FRAME_SYNC) {
+        if ((unpack('n', $raw)[1] & self::FRAME_SYNC) === self::FRAME_SYNC) {
             // mpeg header tag
             return true;
         }
