@@ -890,34 +890,16 @@ class Mp3Info
                 //     break;
                 case 'COMM':    # Comments
                     $dataEnd = $this->fileObj->getFilePos() + $frame_size;
-                    $raw = $this->fileObj->getBytes(4);
-                    $data = unpack('C1encoding/A3language', $raw);
-                    // read until \null character
-                    $short_description = null;
-                    $last_null = false;
-                    $actual_text = false;
-                    while ($this->fileObj->getFilePos() < $dataEnd) {
-                        $char = fgetc($fp);
-                        if ($char == "\00" && $actual_text === false) {
-                            if ($data['encoding'] == 0x1) { # two null-bytes for utf-16
-                                if ($last_null) {
-                                    $actual_text = null;
-                                } else {
-                                    $last_null = true;
-                                }
-                            } else { # no condition for iso-8859-1
-                                $actual_text = null;
-                            }
-                        }
-                        elseif ($actual_text !== false) $actual_text .= $char;
-                        else $short_description .= $char;
-                    }
-                    if ($actual_text === false) $actual_text = $short_description;
-                    // list($short_description, $actual_text) = sscanf("s".chr(0)."s", $data['texts']);
-                    // list($short_description, $actual_text) = explode(chr(0), $data['texts']);
-                    $this->tags2[$frame_id][$data['language']] = array(
-                        'short' => (bool)($data['encoding'] == 0x00) ? mb_convert_encoding($short_description, 'utf-8', 'iso-8859-1') : mb_convert_encoding($short_description, 'utf-8', 'utf-16'),
-                        'actual' => (bool)($data['encoding'] == 0x00) ? mb_convert_encoding($actual_text, 'utf-8', 'iso-8859-1') : mb_convert_encoding($actual_text, 'utf-8', 'utf-16'),
+                    $encoding = unpack('C', $this->fileObj->getBytes(1))[1];
+                    $language = $this->fileObj->getBytes(3);
+                    $allText_raw = $this->fileObj->getBytes($dataEnd - $this->fileObj->getFilePos());
+                    $allText = $this->_getUtf8Text($encoding, $allText_raw);
+
+                    list($short_description, $actual_text) = explode("\0", $allText, 2);
+
+                    $this->tags2[$frame_id][$language] = array(
+                        'short' => $short_description,
+                        'actual' => $actual_text,
                     );
                     break;
                 // case 'RVAD':    # Relative volume adjustment
