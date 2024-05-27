@@ -166,11 +166,13 @@ class Mp3Info
      * @var int Major version of id3v2 tag (if id3v2  present) (2 or 3 or 4)
      */
     public $id3v2MajorVersion;
+    public $id3v2Version;
 
     /**
      * @var int Minor version of id3v2 tag (if id3v2 present)
      */
     public $id3v2MinorVersion;
+    public $id3v2Revision;
 
     /**
      * @var array List of id3v2 header flags (if id3v2 present)
@@ -501,45 +503,53 @@ class Mp3Info
     private function readId3v2Body()
     {
         // read the rest of the id3v2 header
-        $raw = $this->fileObj->getBytes(7);
-        $data = unpack('Cmajor_version/Cminor_version/Cflags/C4size', $raw);
-        $this->id3v2MajorVersion = $data['major_version'];
-        $this->id3v2MinorVersion = $data['minor_version'];
-        $flags = decbin($data['flags']);
-        if ($this->id3v2MajorVersion == 2) { // parse id3v2.2.0 header flags
-            $this->id3v2Flags = array(
-                'unsynchronisation' => (bool)substr($flags, 0, 1),
-                'compression' => (bool)substr($flags, 1, 1),
-            );
-        } else if ($this->id3v2MajorVersion == 3) { // parse id3v2.3.0 header flags
-            $this->id3v2Flags = array(
-                'unsynchronisation' => (bool)substr($flags, 0, 1),
-                'extended_header' => (bool)substr($flags, 1, 1),
-                'experimental_indicator' => (bool)substr($flags, 2, 1),
-            );
-            if ($this->id3v2Flags['extended_header'])
-                throw new \Exception('NEED TO PARSE EXTENDED HEADER!');
-        } else if ($this->id3v2MajorVersion == 4) { // parse id3v2.4.0 header flags
-            $this->id3v2Flags = array(
-                'unsynchronisation' => (bool)substr($flags, 0, 1),
-                'extended_header' => (bool)substr($flags, 1, 1),
-                'experimental_indicator' => (bool)substr($flags, 2, 1),
-                'footer_present' => (bool)substr($flags, 3, 1),
-            );
-            if ($this->id3v2Flags['extended_header'])
-                throw new \Exception('NEED TO PARSE EXTENDED HEADER!');
-            if ($this->id3v2Flags['footer_present'])
-                throw new \Exception('NEED TO PARSE id3v2.4 FOOTER!');
-        }
-        $size = $data['size1'] << 21 | $data['size2'] << 14 | $data['size3'] << 7 | $data['size4'];
+        $raw = $this->fileObj->getBytes(3);
+        $data = unpack('Cversion/Crevision/Cflags', $raw);
+        $this->id3v2Version = $data['version'];
+        $this->id3v2Revision = $data['revision'];
+        // backwards compatibility:
+        $this->id3v2MajorVersion = $data['version'];
+        $this->id3v2MinorVersion = $data['revision'];
 
-        if ($this->id3v2MajorVersion == 2) {
+        $flags = str_pad(decbin($data['flags']), 8, '0', STR_PAD_LEFT);
+        $this->id3v2Flags = array();
+
+        if ($this->id3v2Version >= 2) {
+            // parse id3v2.2.0 header flags
+            $this->id3v2Flags['unsynchronisation'] = (bool)substr($flags, 0, 1);
+            $this->id3v2Flags['compression'] = (bool)substr($flags, 1, 1);
+        }
+        
+        if ($this->id3v2Version >= 3) {
+            // id3v2.3 changes second bit from compression to extended_header
+            $this->id3v2Flags['extended_header'] = &$this->id3v2Flags['compression'];
+            unset($this->id3v2Flags['compression']);
+            // parse additional id3v2.3.0 header flags
+            $this->id3v2Flags['experimental_indicator'] = (bool)substr($flags, 2, 1);
+
+            if ($this->id3v2Flags['extended_header']) {
+                throw new Exception('NEED TO PARSE EXTENDED HEADER!');
+            }
+        }
+
+        if ($this->id3v2Version >= 4) {
+            // parse additional id3v2.4.0 header flags
+            $this->id3v2Flags['footer_present'] = (bool)substr($flags, 3, 1);
+
+            if ($this->id3v2Flags['footer_present']) {
+                throw new Exception('NEED TO PARSE id3v2.4 FOOTER!');
+            }
+        }
+
+        $size = $this->getSyncsafeSize($this->fileObj->getBytes(4));
+
+        if ($this->id3v2Version == 2) {
             // parse id3v2.2.0 body
             /*throw new \Exception('NEED TO PARSE id3v2.2.0 flags!');*/
-        } elseif ($this->id3v2MajorVersion == 3) {
+        } elseif ($this->id3v2Version == 3) {
             // parse id3v2.3.0 body
             $this->parseId3v23Body(10 + $size);
-        } elseif ($this->id3v2MajorVersion == 4) {
+        } elseif ($this->id3v2Version == 4) {
             // parse id3v2.4.0 body
             $this->parseId3v24Body(10 + $size);
         }
