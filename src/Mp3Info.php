@@ -258,7 +258,7 @@ class Mp3Info
         return $data;
     }
 
-    protected function getSyncsafeSize(string $rawBytes): int
+    protected function getSynchsafeSize(string $rawBytes): int
     {
         $sizeBytes = unpack('C4', $rawBytes);
         $size = $sizeBytes[1] << 21 | $sizeBytes[2] << 14 | $sizeBytes[3] << 7 | $sizeBytes[4];
@@ -289,7 +289,7 @@ class Mp3Info
             } else {
                 $this->fileObj->seekForward(2); // 2 bytes of tag version
                 $this->fileObj->seekForward(1); // 1 byte of tag flags
-                $size = $this->getSyncsafeSize($this->fileObj->getBytes(4));
+                $size = $this->getSynchsafeSize($this->fileObj->getBytes(4));
                 $size += 10;   // add header size
                 $audioSize -= ($this->_id3Size = $size);
             }
@@ -543,7 +543,7 @@ class Mp3Info
             }
         }
 
-        $size = $this->getSyncsafeSize($this->fileObj->getBytes(4));
+        $size = $this->getSynchsafeSize($this->fileObj->getBytes(4));
 
         if ($this->id3v2Version == 2) {
             // parse id3v2.2.0 body
@@ -770,7 +770,7 @@ class Mp3Info
                 break;
             }
 
-            $frame_size = $this->getSyncsafeSize($this->fileObj->getBytes(4));
+            $frame_size = $this->getSynchsafeSize($this->fileObj->getBytes(4));
 
             $data = unpack('H2flags', $this->fileObj->getBytes(2));
             $flags = base_convert($data['flags'], 16, 2);
