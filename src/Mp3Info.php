@@ -353,48 +353,43 @@ class Mp3Info
      */
     private function readMpegFrame()
     {
-        $header_seek_pos = $this->fileObj->getFilePos() + self::$headerSeekLimit;
+        $headerSeekMax = $this->fileObj->getFilePos() + self::$headerSeekLimit;
+        $headerBytes = $this->fileObj->getBytes(3);   // preload with 3 Bytes
+        $pos = false;
         do {
-            $pos = $this->fileObj->getFilePos();
-            $first_header_byte = $this->fileObj->getBytes(1);
-            if (ord($first_header_byte[0]) === 0xFF) {
-                $second_header_byte = $this->fileObj->getBytes(1);
-                if (((ord($second_header_byte[0]) >> 5) & 0b111) == 0b111) {
-                    $this->fileObj->seekTo($pos);
-                    $header_bytes = $this->fileObj->getBytes(4);
-                    break;
-                } else {
-                    $this->fileObj->seekForward(-1);
-                }
-            } else {
-                $this->fileObj->seekForward(-1);
-            }
-            $this->fileObj->seekForward(1);
-        } while ($this->fileObj->getFilePos() <= $header_seek_pos);
+            $headerBytes .= $this->fileObj->getBytes(1);   // load next Byte
+            $headerBytes = substr($headerBytes, -4);   // limit to 4 Bytes
 
-        if (!isset($header_bytes) || ord($header_bytes[0]) !== 0xFF || ((ord($header_bytes[1]) >> 5) & 0b111) != 0b111) {
-            throw new \Exception('At '.$pos
-                .'(0x'.dechex($pos).') should be a frame header!');
+            if (unpack('n', $headerBytes)[1] & self::FRAME_SYNC === self::FRAME_SYNC) {
+                $pos = $this->fileObj->getFilePos() - 4;
+                break;
+            }
+        } while ($this->fileObj->getFilePos() <= $headerSeekMax);
+
+        if (!$pos) {
+            throw new Exception('No Mpeg frame header found up until pos ' . $headerSeekMax . '(0x' . dechex($headerSeekMax).')!');
         }
 
-        switch (ord($header_bytes[1]) >> 3 & 0b11) {
+        switch (ord($headerBytes[1]) >> 3 & 0b11) {
             case 0b00: $this->codecVersion = self::MPEG_25; break;
             case 0b01: return null; break;
             case 0b10: $this->codecVersion = self::MPEG_2; break;
             case 0b11: $this->codecVersion = self::MPEG_1; break;
         }
 
-        switch (ord($header_bytes[1]) >> 1 & 0b11) {
+        switch (ord($headerBytes[1]) >> 1 & 0b11) {
             case 0b01: $this->layerVersion = self::LAYER_3; break;
             case 0b10: $this->layerVersion = self::LAYER_2; break;
             case 0b11: $this->layerVersion = self::LAYER_1; break;
         }
 
-        $this->bitRate = self::$_bitRateTable[$this->codecVersion][$this->layerVersion][ord($header_bytes[2]) >> 4];
-        $this->sampleRate = self::$_sampleRateTable[$this->codecVersion][(ord($header_bytes[2]) >> 2) & 0b11];
-        if ($this->sampleRate === false) return null;
+        $this->bitRate = self::$_bitRateTable[$this->codecVersion][$this->layerVersion][ord($headerBytes[2]) >> 4];
+        $this->sampleRate = self::$_sampleRateTable[$this->codecVersion][(ord($headerBytes[2]) >> 2) & 0b11];
+        if ($this->sampleRate === false) {
+            return null;
+        }
 
-        switch (ord($header_bytes[3]) >> 6) {
+        switch (ord($headerBytes[3]) >> 6) {
             case 0b00: $this->channel = self::STEREO; break;
             case 0b01: $this->channel = self::JOINT_STEREO; break;
             case 0b10: $this->channel = self::DUAL_MONO; break;
@@ -429,9 +424,9 @@ class Mp3Info
 
         // go to the end of frame
         if ($this->layerVersion == self::LAYER_1) {
-            $this->_cbrFrameSize = floor((12 * $this->bitRate / $this->sampleRate + (ord($header_bytes[2]) >> 1 & 0b1)) * 4);
+            $this->_cbrFrameSize = floor((12 * $this->bitRate / $this->sampleRate + (ord($headerBytes[2]) >> 1 & 0b1)) * 4);
         } else {
-            $this->_cbrFrameSize = floor(144 * $this->bitRate / $this->sampleRate + (ord($header_bytes[2]) >> 1 & 0b1));
+            $this->_cbrFrameSize = floor(144 * $this->bitRate / $this->sampleRate + (ord($headerBytes[2]) >> 1 & 0b1));
         }
 
         $this->fileObj->seekTo($pos + $this->_cbrFrameSize);
