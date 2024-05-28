@@ -122,6 +122,31 @@ class Mp3Info
     public $sampleRate;
 
     /**
+     * @var bool Header protection by 16 bit CRC
+     */
+    public $isProtected;
+
+    /**
+     * @var bool Frame data is padded with one slot
+     */
+    public $isPadded;
+
+    /**
+     * @var bool Private bit (only informative)
+     */
+    public $isPrivate;
+
+    /**
+     * @var bool Copyright bit (only informative)
+     */
+    public $isCopyright;
+
+    /**
+     * @var bool Original bit (only informative)
+     */
+    public $isOriginal;
+
+    /**
      * @var boolean Contains true if audio has variable bit rate
      */
     public $isVbr = false;
@@ -318,7 +343,7 @@ class Mp3Info
              * Read first N frames
              */
             for ($i = 0; $i < self::$framesCountRead; $i++) {
-                $framesCount = $this->readMpegFrame();
+                $framesCount = $this->_readMpegFrame();
             }
 
             $this->_framesCount = $framesCount !== null
@@ -346,56 +371,58 @@ class Mp3Info
         return $audioSize;
     }
 
-    /**
-     * Read first frame information.
-     * @return int Number of frames (if present if first frame of VBR-file)
-     * @throws \Exception
-     */
-    private function readMpegFrame()
+    private function _findNextMpegFrame(int $headerSeekLimit): ?string
     {
-        $headerSeekMax = $this->fileObj->getFilePos() + self::$headerSeekLimit;
+        // find frame sync
+        $headerSeekMax = $this->fileObj->getFilePos() + $headerSeekLimit;
         $headerBytes = $this->fileObj->getBytes(3);   // preload with 3 Bytes
-        $pos = false;
         do {
             $headerBytes .= $this->fileObj->getBytes(1);   // load next Byte
             $headerBytes = substr($headerBytes, -4);   // limit to 4 Bytes
 
             if ((unpack('n', $headerBytes)[1] & self::FRAME_SYNC) === self::FRAME_SYNC) {
-                $pos = $this->fileObj->getFilePos() - 4;
-                break;
+                return $headerBytes;
             }
         } while ($this->fileObj->getFilePos() <= $headerSeekMax);
+ 
+        return null;
+    }
 
-        if ($pos === false) {
-            throw new Exception('No Mpeg frame header found up until pos ' . $headerSeekMax . '(0x' . dechex($headerSeekMax).')!');
+    /**
+     * Read first frame information.
+     *
+     * @link   https://www.codeproject.com/Articles/8295/MPEG-Audio-Frame-Header
+     * @return int Number of frames (if present if first frame of VBR-file)
+     * @throws \Exception
+     */
+    private function _readMpegFrame()
+    {
+        $headerBytes = $this->_findNextMpegFrame(self::$headerSeekLimit);
+        $pos = $this->fileObj->getFilePos() - 4;
+        if (is_null($headerBytes)) {
+            throw new Exception('No Mpeg frame header found up until pos ' . $pos . '(0x' . dechex($pos) . ')!');
         }
 
-        switch (ord($headerBytes[1]) >> 3 & 0b11) {
-            case 0b00: $this->codecVersion = self::MPEG_25; break;
-            case 0b01: echo 'INVALID CODEC VERSION'; return null; break;
-            case 0b10: $this->codecVersion = self::MPEG_2; break;
-            case 0b11: $this->codecVersion = self::MPEG_1; break;
-        }
+        // 2nd Byte: (rest of frame sync), Version, Layer, Protection
+        $this->codecVersion = [self::MPEG_25, null, self::MPEG_2, self::MPEG_1][ord($headerBytes[1]) >> 3 & 0b11];
+        $this->layerVersion = [null, self::LAYER_3, self::LAYER_2, self::LAYER_1][ord($headerBytes[1]) >> 1 & 0b11];
+        $this->isProtected = ((ord($headerBytes[1]) & 0b1) == 0b1);
 
-        switch (ord($headerBytes[1]) >> 1 & 0b11) {
-            case 0b00: echo 'INVALID LAYER VERSION'; return null; break;
-            case 0b01: $this->layerVersion = self::LAYER_3; break;
-            case 0b10: $this->layerVersion = self::LAYER_2; break;
-            case 0b11: $this->layerVersion = self::LAYER_1; break;
-        }
-
+        // 3rd Byte: Bitrate, Sampling rate, Padding, Private
         $this->bitRate = self::$_bitRateTable[$this->codecVersion][$this->layerVersion][ord($headerBytes[2]) >> 4];
         $this->sampleRate = self::$_sampleRateTable[$this->codecVersion][(ord($headerBytes[2]) >> 2) & 0b11];
         if ($this->sampleRate === false) {
             return null;
         }
+        $this->isPadded = ((ord($headerBytes[2]) & 0b10) == 0b10);
+        $this->isPrivate = ((ord($headerBytes[2]) & 0b1) == 0b1);
 
-        switch (ord($headerBytes[3]) >> 6) {
-            case 0b00: $this->channel = self::STEREO; break;
-            case 0b01: $this->channel = self::JOINT_STEREO; break;
-            case 0b10: $this->channel = self::DUAL_MONO; break;
-            case 0b11: $this->channel = self::MONO; break;
-        }
+        // 4th Byte: Channels, Mode extension, Copyright, Original, Emphasis
+        $this->channel = [self::STEREO, self::JOINT_STEREO, self::DUAL_MONO, self::MONO][ord($headerBytes[3]) >> 6];
+        // TODO: Mode extension (2 bits)
+        $this->isCopyright = ((ord($headerBytes[3]) & 0b1000) == 0b1000);
+        $this->isOriginal  = ((ord($headerBytes[3]) & 0b100) == 0b100);
+        // TODO: Emphasis (2 bits)
 
         $vbr_offset = self::$_vbrOffsets[$this->codecVersion][$this->channel == self::MONO ? 0 : 1];
 
