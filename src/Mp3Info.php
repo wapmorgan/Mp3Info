@@ -298,7 +298,7 @@ class Mp3Info
         $this->fileObj->seekTo($this->fileObj->getFileSize() - 128);
         if ($this->fileObj->getBytes(3) == self::TAG1_SYNC) {
             if ($mode & self::TAGS) {
-                $audioSize -= $this->readId3v1Body();
+                $audioSize -= $this->_readId3v1();
             } else {
                 $audioSize -= 128;
             }
@@ -438,19 +438,19 @@ class Mp3Info
     /**
      * Reads id3v1 tag.
      *
-     * @link https://id3.org/ID3v1
+     * @link   https://id3.org/ID3v1
      * @return int Returns length of id3v1 tag.
      */
-    private function readId3v1Body(): int
+    private function _readId3v1(): int
     {
-        $this->tags1['song'] = trim($this->fileObj->getBytes(30));
+        $this->tags1['song']   = trim($this->fileObj->getBytes(30));
         $this->tags1['artist'] = trim($this->fileObj->getBytes(30));
-        $this->tags1['album'] = trim($this->fileObj->getBytes(30));
-        $this->tags1['year'] = trim($this->fileObj->getBytes(4));
+        $this->tags1['album']  = trim($this->fileObj->getBytes(30));
+        $this->tags1['year']   = trim($this->fileObj->getBytes(4));
         $comment = $this->fileObj->getBytes(30);
         if ($comment[28] == "\x00" && $comment[29] != "\x00") {
             // id3v1.1 - last Byte of comment is trackNo
-            $this->tags1['track'] = ord($comment[29]);
+            $this->tags1['track']   = ord($comment[29]);
             $this->tags1['comment'] = trim(substr($comment, 0, 28));
         } else {
             // id3v1.0
