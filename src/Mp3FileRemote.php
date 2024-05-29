@@ -2,6 +2,8 @@
 
 namespace wapmorgan\Mp3Info;
 
+use \Exception;
+
 class Mp3FileRemote
 {
     public string $fileName;
@@ -68,7 +70,10 @@ class Mp3FileRemote
         $output = [];
         
         do {
-            $this->downloadBlock($blockId);   // make sure we have this block
+            // make sure we have this block
+            if (!$this->downloadBlock($blockId)) {
+                throw new Exception('Error downloading block ' . $blockId . ' (starting at pos. ' . ($blockId * $this->blockSize) . ')!');
+            }   
             if ($blockPos + $numBytes >= $this->blockSize) {
                 // length of request is more than this block has, truncate to block len
                 $subLen = $this->blockSize - $blockPos;
@@ -152,6 +157,9 @@ class Mp3FileRemote
             ],
         ]);
         $filePtr = fopen($this->fileName, 'rb', false, $context);
+        if ($filePtr === false) {
+            return false;
+        }
         $this->buffer[$blockNo] = fread($filePtr, $this->blockSize);
         $status = stream_get_meta_data($filePtr);
         $httpStatus = explode(' ', $status['wrapper_data'][0])[1];
