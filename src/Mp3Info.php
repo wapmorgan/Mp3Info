@@ -406,7 +406,7 @@ class Mp3Info
         // 2nd Byte: (rest of frame sync), Version, Layer, Protection
         $this->codecVersion = [self::MPEG_25, null, self::MPEG_2, self::MPEG_1][ord($headerBytes[1]) >> 3 & 0b11];
         $this->layerVersion = [null, self::LAYER_3, self::LAYER_2, self::LAYER_1][ord($headerBytes[1]) >> 1 & 0b11];
-        $this->isProtected = ((ord($headerBytes[1]) & 0b1) == 0b1);
+        $this->isProtected = !((ord($headerBytes[1]) & 0b1) == 0b1);   // inverted as 0=protected, 1=not protected
 
         // 3rd Byte: Bitrate, Sampling rate, Padding, Private
         $this->bitRate = self::$_bitRateTable[$this->codecVersion][$this->layerVersion][ord($headerBytes[2]) >> 4];
