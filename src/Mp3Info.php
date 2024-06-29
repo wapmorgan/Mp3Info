@@ -373,7 +373,6 @@ class Mp3Info {
 
         switch ($header_bytes[1] >> 3 & 0b11) {
             case 0b00: $this->codecVersion = self::MPEG_25; break;
-            case 0b01: $this->codecVersion = self::CODEC_UNDEFINED; break;
             case 0b10: $this->codecVersion = self::MPEG_2; break;
             case 0b11: $this->codecVersion = self::MPEG_1; break;
         }
