@@ -1,3 +1,4 @@
 vendor
 *.mp3
 !tests/Unit/Samples/kky3OREM.mp3
+.phpunit.result.cache
