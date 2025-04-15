@@ -1064,7 +1064,10 @@ class Mp3Info {
         }
     }
 
-    protected static function isValid(string $data): bool
+    /** 
+     * Uses a binary string to check mp3 validity
+     */
+    public static function isValid(string $data): bool
     {
         $first3octets = substr($data, 0, 3);
         
