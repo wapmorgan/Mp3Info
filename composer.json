@@ -9,6 +9,9 @@
             "wapmorgan\\Mp3Info\\": "src/"
         }
 	},
+	"autoload-dev": {
+        "psr-4": { "wapmorgan\\Tests\\": "tests/" }
+    },
 	"require": {
 		"php": ">=5.4.0",
 		"ext-mbstring": "*"
@@ -16,5 +19,10 @@
 	"require-dev": {
         "phpunit/phpunit": "^11"
     },
-	"bin": ["bin/mp3scan"]
+	"bin": ["bin/mp3scan"],
+	"scripts": {
+        "tests": [
+            "vendor/bin/phpunit"
+        ]
+    }
 }
