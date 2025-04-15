@@ -14,6 +14,7 @@ Make it possible for the service to receive information not only from the file b
 - refactored `isValidAudio`:
   - now this method only reads data from provided filename
   - logic moved to new protected static method `isValid`
+  - added try/cat block to in case when `file_get_contents` returns false
 - new protected static method `isValid`
   - reads data from string and makes a file validity decision
 - `composer.json`:
