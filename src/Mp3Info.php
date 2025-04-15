@@ -4,6 +4,8 @@ namespace wapmorgan\Mp3Info;
 use Exception;
 use RuntimeException;
 
+use function sprintf;
+
 /**
  * This class extracts information about an mpeg audio. (supported mpeg versions: MPEG-1, MPEG-2)
  * (supported mpeg audio layers: 1, 2, 3).
@@ -1054,14 +1056,23 @@ class Mp3Info {
             throw new Exception('File ' . $filename . ' is not present!');
         }
 
-        $filesize = file_exists($filename) ? filesize($filename) : static::getUrlContentLength($filename);
+        $raw = file_get_contents($filename, false, null);
+        if ($raw === false) {
+            throw new Exception(sprintf('Failed to read the file %s!', $filename));
+        } else {
+            return self::isValid($raw);
+        }
+    }
 
-        $raw = file_get_contents($filename, false, null, 0, 3);
-        return $raw === self::TAG2_SYNC // id3v2 tag
-            || (self::FRAME_SYNC === (unpack('n*', $raw)[1] & self::FRAME_SYNC)) // mpeg header tag
+    protected static function isValid(string $data): bool
+    {
+        $first3octets = substr($data, 0, 3);
+        
+        return $first3octets === self::TAG2_SYNC // id3v2 tag
+            || (self::FRAME_SYNC === (unpack('n*', $first3octets)[1] & self::FRAME_SYNC)) // mpeg header tag
             || (
-                $filesize > 128
-                && file_get_contents($filename, false, null, -128, 3) === self::TAG1_SYNC
+                strlen($data) > 128
+                && substr($data, -128, 3) === self::TAG1_SYNC
             )  // id3v1 tag
             ;
     }

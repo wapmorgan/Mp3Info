@@ -1,1 +1,1 @@
-{"version":1,"defects":{"wapmorgan\\Tests\\Unit\\Mp3InfoTest::testIsValidAudio":8},"times":{"wapmorgan\\Tests\\Unit\\Mp3InfoTest::testIsValidAudio":0.005}}
+{"version":1,"defects":{"wapmorgan\\Tests\\Unit\\Mp3InfoTest::testIsValidAudio":8,"wapmorgan\\Tests\\Unit\\Mp3InfoTest::testIsValidAudioFromInet":8},"times":{"wapmorgan\\Tests\\Unit\\Mp3InfoTest::testIsValidAudio":0.006,"wapmorgan\\Tests\\Unit\\Mp3InfoTest::testIsValidAudioFromInet":0.29}}

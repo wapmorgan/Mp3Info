@@ -12,7 +12,7 @@ final class Mp3InfoTest extends TestCase
     public function testIsValidAudio(): void
     {
         $file =  __DIR__ . '/Samples/kky3OREM.mp3';
-    
+        
         $this->assertSame(true, Mp3Info::isValidAudio($file));
     }
 }
