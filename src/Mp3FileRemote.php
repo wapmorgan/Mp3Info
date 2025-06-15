@@ -52,7 +52,8 @@ class Mp3FileRemote
             ],
         ]);
         $result = get_headers($this->fileName, true, $context);
-        return $result['Content-Length'];
+        $result = array_change_key_case($result, CASE_LOWER);
+        return $result['content-length'];
     }
 
     /**
