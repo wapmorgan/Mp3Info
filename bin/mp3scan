@@ -1,4 +1,4 @@
-#!/usr/bin/php
+#!/usr/bin/env php
 <?php
 use wapmorgan\Mp3Info\Mp3Info;
 
